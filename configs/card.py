@@ -45,3 +45,18 @@ class mdm_full(
         model.motion_mdm,
 ):
     save_dir: str = 'save/mdm_full'
+
+
+# ============================================
+# OakInk2 Model Cards
+# ============================================
+
+### OakInk2 Full model (body + hands + objects)
+@dataclass
+class oakink2_full(
+        data.oakink2_full,
+        model.motion_unet_adagn_xl,
+):
+    save_dir: str = 'save/oakink2_full'
+    # Note: OakInk2 uses 398D features (vs GRAB's 117D)
+    # Model architecture may need adjustment for larger feature dimension

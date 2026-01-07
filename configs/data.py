@@ -90,3 +90,34 @@ class mdm_full(grab_motion_rel_pca):
     mean_name: str = 'Mean_diffh2o_full.npy'
     std_name: str = 'Std_diffh2o_full.npy'
     proj_matrix_name: str = ''
+
+
+# ============================================
+# OakInk2 Dataset Configurations
+# ============================================
+
+@dataclass
+class oakink2_base(BaseOptions, DataOptions):
+    """Base configuration for OakInk2 dataset."""
+    dataset: str = 'oakink2'
+    data_dir: str = 'dataset/OAKINK2'
+    abs_3d: bool = False
+    use_pca: bool = True
+    max_objects: int = 3
+    include_body: bool = True
+
+
+@dataclass
+class oakink2_full(oakink2_base):
+    """Full OakInk2 configuration with body + hands + objects."""
+    traj_only: bool = False
+    hands_only: bool = False
+    use_random_proj: bool = False
+    random_proj_scale: float = 1.0
+    obj_enc: bool = True
+    motion_enc_frames: int = 0
+    text_detailed: bool = False
+    data_repr: str = 'oakink2_representation'
+    mean_name: str = 'Mean_oakink2.npy'
+    std_name: str = 'Std_oakink2.npy'
+    proj_matrix_name: str = ''

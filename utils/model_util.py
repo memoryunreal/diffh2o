@@ -47,7 +47,7 @@ def get_model_args(args: FullModelOptions, data: DataLoader):
     action_emb = 'tensor'
     if args.unconstrained:
         cond_mode = 'no_cond'
-    elif args.dataset in ['kit', 'humanml', 'grab']:
+    elif args.dataset in ['kit', 'humanml', 'grab', 'oakink2']:
         cond_mode = 'text'
     else:
         cond_mode = 'action'
@@ -67,9 +67,13 @@ def get_model_args(args: FullModelOptions, data: DataLoader):
         if args.drop_redundant:
             njoints =  81 #67 # 4 + 21 * 3
         else:
-            njoints = 117 
+            njoints = 117
             if args.use_contacts:
                 njoints += 42
+    elif args.dataset == 'oakink2':
+        data_rep = 'hml_vec'
+        nfeats = 1
+        njoints = 398  # OakInk2 feature dimension
     elif args.dataset == 'kit':
         data_rep = 'hml_vec'
         njoints = 251

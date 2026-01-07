@@ -8,15 +8,19 @@ from dataclasses import dataclass
 
 
 def get_dataset_class(name):
-    from data_loaders.humanml.data.dataset import GRAB
-    return GRAB
+    if name == 'oakink2':
+        from data_loaders.humanml.data.oakink2_dataset import OakInk2
+        return OakInk2
+    else:
+        from data_loaders.humanml.data.dataset import GRAB
+        return GRAB
 
 
 def get_collate_fn(name, hml_mode='train'):
     if hml_mode == 'gt':
         from data_loaders.humanml.data.dataset import collate_fn as t2m_eval_collate
         return t2m_eval_collate
-    if name in ["grab"]:
+    if name in ["grab", "oakink2"]:
         return t2m_collate
     else:
         return all_collate
@@ -55,7 +59,16 @@ class DatasetConfig:
 def get_dataset(conf: DatasetConfig):
     DATA = get_dataset_class(conf.name)
 
-    if conf.name in ["grab"]:
+    if conf.name == "oakink2":
+        # OakInk2 dataset
+        dataset = DATA(
+            mode=conf.hml_mode,
+            split=conf.split,
+            data_root='dataset/OAKINK2',
+            num_frames=conf.num_frames,
+            motion_enc_frames=conf.motion_enc_frames,
+        )
+    elif conf.name in ["grab"]:
         dataset = DATA(split=conf.split,
                        split_set=conf.split_set,
                        num_frames=conf.num_frames,
@@ -80,7 +93,7 @@ def get_dataset(conf: DatasetConfig):
                        text_detailed=conf.text_detailed,
                        )
     else:
-        raise NotImplementedError()
+        raise NotImplementedError(f"Dataset {conf.name} not implemented")
     return dataset
 
 
