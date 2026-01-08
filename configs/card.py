@@ -51,7 +51,7 @@ class mdm_full(
 # OakInk2 Model Cards
 # ============================================
 
-### OakInk2 Full model (body + hands + objects)
+### OakInk2 Full model - Primitive mode (body + hands + objects)
 @dataclass
 class oakink2_full(
         data.oakink2_full,
@@ -59,4 +59,13 @@ class oakink2_full(
 ):
     save_dir: str = 'save/oakink2_full'
     # Note: OakInk2 uses 398D features (vs GRAB's 117D)
-    # Model architecture may need adjustment for larger feature dimension
+
+
+### OakInk2 Complex model - Long sequences for long motion generation
+@dataclass
+class oakink2_complex(
+        data.oakink2_complex,
+        model.motion_unet_adagn_xl,
+):
+    save_dir: str = 'save/oakink2_complex'
+    # For long motion generation (sequences up to 20 minutes)

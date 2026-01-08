@@ -105,11 +105,12 @@ class oakink2_base(BaseOptions, DataOptions):
     use_pca: bool = True
     max_objects: int = 3
     include_body: bool = True
+    data_mode: str = 'primitive'  # 'primitive' or 'complex'
 
 
 @dataclass
 class oakink2_full(oakink2_base):
-    """Full OakInk2 configuration with body + hands + objects."""
+    """Full OakInk2 configuration with body + hands + objects (primitive mode)."""
     traj_only: bool = False
     hands_only: bool = False
     use_random_proj: bool = False
@@ -117,7 +118,25 @@ class oakink2_full(oakink2_base):
     obj_enc: bool = True
     motion_enc_frames: int = 0
     text_detailed: bool = False
-    data_repr: str = 'oakink2_representation'
-    mean_name: str = 'Mean_oakink2.npy'
-    std_name: str = 'Std_oakink2.npy'
+    data_mode: str = 'primitive'
+    data_repr: str = 'oakink2_primitive'
+    mean_name: str = 'Mean_oakink2_primitive.npy'
+    std_name: str = 'Std_oakink2_primitive.npy'
+    proj_matrix_name: str = ''
+
+
+@dataclass
+class oakink2_complex(oakink2_base):
+    """OakInk2 configuration for complex/long sequences."""
+    traj_only: bool = False
+    hands_only: bool = False
+    use_random_proj: bool = False
+    random_proj_scale: float = 1.0
+    obj_enc: bool = True
+    motion_enc_frames: int = 0
+    text_detailed: bool = False
+    data_mode: str = 'complex'
+    data_repr: str = 'oakink2_complex'
+    mean_name: str = 'Mean_oakink2_complex.npy'
+    std_name: str = 'Std_oakink2_complex.npy'
     proj_matrix_name: str = ''

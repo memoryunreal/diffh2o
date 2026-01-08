@@ -54,6 +54,7 @@ class DatasetConfig:
     mean_name: str = ''
     std_name: str = ''
     proj_matrix_name: str = ''
+    data_mode: str = 'primitive'  # For OakInk2: 'primitive' or 'complex'
 
 
 def get_dataset(conf: DatasetConfig):
@@ -65,6 +66,7 @@ def get_dataset(conf: DatasetConfig):
             mode=conf.hml_mode,
             split=conf.split,
             data_root='dataset/OAKINK2',
+            data_mode=conf.data_mode,  # 'primitive' or 'complex'
             num_frames=conf.num_frames,
             motion_enc_frames=conf.motion_enc_frames,
         )

@@ -72,6 +72,7 @@ class OakInk2Dataset(data.Dataset):
         data_root: str = "dataset/OAKINK2",
         split: str = "train",
         mode: str = "train",
+        data_mode: str = "primitive",  # 'primitive' or 'complex'
         max_motion_length: int = 200,
         min_motion_len: int = 20,
         max_text_len: int = 20,
@@ -83,19 +84,20 @@ class OakInk2Dataset(data.Dataset):
         self.data_root = data_root
         self.split = split
         self.mode = mode
+        self.data_mode = data_mode  # 'primitive' or 'complex'
         self.max_motion_length = max_motion_length
         self.min_motion_len = min_motion_len
         self.max_text_len = max_text_len
         self.max_objects = max_objects
         self.motion_enc_frames = motion_enc_frames
 
-        # Directories
-        self.motion_dir = pjoin(data_root, "oakink2_representation")
-        self.text_dir = pjoin(data_root, "texts")
+        # Directories based on data_mode
+        self.motion_dir = pjoin(data_root, f"oakink2_{data_mode}")
+        self.text_dir = pjoin(data_root, f"texts_{data_mode}")
 
         # Load normalization statistics
-        self.mean = np.load(pjoin(data_root, "Mean_oakink2.npy"))
-        self.std = np.load(pjoin(data_root, "Std_oakink2.npy"))
+        self.mean = np.load(pjoin(data_root, f"Mean_oakink2_{data_mode}.npy"))
+        self.std = np.load(pjoin(data_root, f"Std_oakink2_{data_mode}.npy"))
 
         # Load BPS encodings for objects
         bps_path = pjoin(data_root, "bps_enc_oakink2.npy")
@@ -106,7 +108,7 @@ class OakInk2Dataset(data.Dataset):
             print(f"WARNING: BPS file not found at {bps_path}")
 
         # Load file names mapping
-        file_names_path = pjoin(data_root, "file_names.txt")
+        file_names_path = pjoin(data_root, f"file_names_{data_mode}.txt")
         self.id_dict = {}
         if os.path.exists(file_names_path):
             with open(file_names_path, 'r') as f:
@@ -116,7 +118,7 @@ class OakInk2Dataset(data.Dataset):
                         self.id_dict[parts[0]] = parts[1]
 
         # Load split file
-        split_file = pjoin(data_root, f"{split}_oakink2.txt")
+        split_file = pjoin(data_root, f"{split}_oakink2_{data_mode}.txt")
         if not os.path.exists(split_file):
             raise FileNotFoundError(f"Split file not found: {split_file}")
 
@@ -335,6 +337,7 @@ class OakInk2(data.Dataset):
         mode: str,
         split: str = "train",
         data_root: str = "dataset/OAKINK2",
+        data_mode: str = "primitive",  # 'primitive' or 'complex'
         num_frames: Optional[int] = None,
         motion_enc_frames: int = 0,
         **kwargs
@@ -342,6 +345,7 @@ class OakInk2(data.Dataset):
         self.mode = mode
         self.dataset_name = 'oakink2'
         self.dataname = 'oakink2'
+        self.data_mode = data_mode
 
         max_motion_length = num_frames if num_frames is not None else 200
 
@@ -349,6 +353,7 @@ class OakInk2(data.Dataset):
             data_root=data_root,
             split=split,
             mode=mode,
+            data_mode=data_mode,
             max_motion_length=max_motion_length,
             motion_enc_frames=motion_enc_frames,
             **kwargs
