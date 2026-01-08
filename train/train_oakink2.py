@@ -15,7 +15,7 @@ from utils import dist_util
 from train.training_loop import TrainLoop
 from data_loaders.get_data import DatasetConfig, get_dataset_loader
 from utils.model_util import create_model_and_diffusion
-from train.train_platforms import ClearmlPlatform, TensorboardPlatform, NoPlatform
+from train.train_platforms import ClearmlPlatform, TensorboardPlatform, NoPlatform, WandbPlatform
 from configs import card
 
 

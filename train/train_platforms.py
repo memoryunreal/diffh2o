@@ -52,3 +52,52 @@ class NoPlatform(TrainPlatform):
         pass
 
 
+class WandbPlatform(TrainPlatform):
+    """Weights & Biases logging platform.
+
+    Uses environment variables for configuration:
+    - WANDB_BASE_URL: wandb server URL (for local wandb)
+    - WANDB_API_KEY: API key
+    - WANDB_ENTITY: user/team name
+    - WANDB_PROJECT: project name
+    - WANDB_RUN_NAME: run name
+
+    Source your wandb_init.sh before running training.
+    """
+    def __init__(self, save_dir, config=None):
+        import wandb
+
+        # Get run name from env or use save_dir name
+        run_name = os.environ.get('WANDB_RUN_NAME', os.path.basename(save_dir))
+        project = os.environ.get('WANDB_PROJECT', 'diffh2o')
+        entity = os.environ.get('WANDB_ENTITY', None)
+
+        # Initialize wandb run
+        self.run = wandb.init(
+            project=project,
+            entity=entity,
+            name=run_name,
+            config=config,
+            dir=save_dir,
+            resume='allow',
+        )
+        print(f"WandB initialized: {self.run.url}")
+
+    def report_scalar(self, name, value, iteration, group_name=None):
+        import wandb
+        if group_name:
+            wandb.log({f'{group_name}/{name}': value}, step=iteration)
+        else:
+            wandb.log({name: value}, step=iteration)
+
+    def report_args(self, args, name):
+        import wandb
+        if hasattr(args, '__dict__'):
+            wandb.config.update(args.__dict__, allow_val_change=True)
+        else:
+            wandb.config.update(dict(args), allow_val_change=True)
+
+    def close(self):
+        import wandb
+        wandb.finish()
+
