@@ -1,0 +1,49 @@
+{
+  "model_path": "save/v4_grab_200k/model000070000.pt",
+  "model_version": "v4",
+  "data_root": "dataset/GRAB_V4",
+  "step": "000070000",
+  "num_samples": 270,
+  "num_repeats": 2,
+  "smooth_window": 0,
+  "metrics": {
+    "fid_mean": 22.961874565919736,
+    "fid_std": 0.08417474477524678,
+    "r_prec_1_mean": 0.003703703703703704,
+    "r_prec_1_std": 0.0,
+    "r_prec_2_mean": 0.005555555555555556,
+    "r_prec_2_std": 0.001851851851851852,
+    "r_prec_3_mean": 0.007407407407407408,
+    "r_prec_3_std": 0.0,
+    "matching_pred_mean": 12.566378026538425,
+    "matching_pred_std": 0.010994255984270396,
+    "matching_real_mean": 12.924474025655677,
+    "matching_real_std": 0.001764419343737167,
+    "diversity_mean": 5.8558924198150635,
+    "diversity_std": 0.3214385509490967,
+    "diversity_real_mean": 6.894650936126709,
+    "diversity_real_std": 0.41241025924682617
+  },
+  "per_repeat": [
+    {
+      "fid": 23.046049310694983,
+      "r_prec_1": 0.003703703703703704,
+      "r_prec_2": 0.007407407407407408,
+      "r_prec_3": 0.007407407407407408,
+      "matching_pred": 12.577372282522695,
+      "matching_real": 12.922709606311939,
+      "diversity": 6.17733097076416,
+      "diversity_real": 6.482240676879883
+    },
+    {
+      "fid": 22.87769982114449,
+      "r_prec_1": 0.003703703703703704,
+      "r_prec_2": 0.003703703703703704,
+      "r_prec_3": 0.007407407407407408,
+      "matching_pred": 12.555383770554155,
+      "matching_real": 12.926238444999413,
+      "diversity": 5.534453868865967,
+      "diversity_real": 7.307061195373535
+    }
+  ]
+}

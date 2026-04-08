@@ -1,0 +1,49 @@
+{
+  "model_path": "save/v4_interact_grab_200k/model000050000.pt",
+  "model_version": "v4",
+  "data_root": "dataset/INTERACT_GRAB_V4",
+  "step": "000050000",
+  "num_samples": 270,
+  "num_repeats": 2,
+  "smooth_window": 0,
+  "metrics": {
+    "fid_mean": 4.725425753439239,
+    "fid_std": 0.06231411625843464,
+    "r_prec_1_mean": 0.016666666666666666,
+    "r_prec_1_std": 0.005555555555555557,
+    "r_prec_2_mean": 0.027777777777777776,
+    "r_prec_2_std": 0.0018518518518518528,
+    "r_prec_3_mean": 0.037037037037037035,
+    "r_prec_3_std": 0.011111111111111113,
+    "matching_pred_mean": 9.015832692605478,
+    "matching_pred_std": 0.0019711882979782658,
+    "matching_real_mean": 9.066250813007354,
+    "matching_real_std": 0.007444939348432378,
+    "diversity_mean": 9.53825569152832,
+    "diversity_std": 0.16846752166748047,
+    "diversity_real_mean": 9.925099849700928,
+    "diversity_real_std": 0.862389087677002
+  },
+  "per_repeat": [
+    {
+      "fid": 4.663111637180805,
+      "r_prec_1": 0.011111111111111112,
+      "r_prec_2": 0.025925925925925925,
+      "r_prec_3": 0.025925925925925925,
+      "matching_pred": 9.017803880903456,
+      "matching_real": 9.058805873658923,
+      "diversity": 9.7067232131958,
+      "diversity_real": 9.062710762023926
+    },
+    {
+      "fid": 4.787739869697674,
+      "r_prec_1": 0.022222222222222223,
+      "r_prec_2": 0.02962962962962963,
+      "r_prec_3": 0.04814814814814815,
+      "matching_pred": 9.0138615043075,
+      "matching_real": 9.073695752355787,
+      "diversity": 9.36978816986084,
+      "diversity_real": 10.78748893737793
+    }
+  ]
+}

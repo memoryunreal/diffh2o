@@ -69,3 +69,51 @@ class oakink2_complex(
 ):
     save_dir: str = 'save/oakink2_complex'
     # For long motion generation (sequences up to 20 minutes)
+
+
+# ============================================
+# Transition Model Cards
+# ============================================
+
+### OakInk2 Transition model (398D, real transitions)
+@dataclass
+class oakink2_transition(
+        data.oakink2_transition,
+        model.transition_transformer,
+):
+    save_dir: str = 'save/oakink2_transition'
+
+
+### GRAB Transition model (117D, self-supervised infilling)
+@dataclass
+class grab_transition(
+        data.grab_transition,
+        model.transition_transformer,
+):
+    save_dir: str = 'save/grab_transition'
+
+
+# ============================================
+# HIMO Model Cards (Track B: joint-based, V4 entity-centric)
+# ============================================
+
+### HIMO 2-object V4 model (489D, position-only, 5 entities)
+@dataclass
+class himo_v4_2o(
+        data.himo_v4_2o,
+):
+    save_dir: str = 'save/himo_v4_2o'
+    # V4 entity dims: body=201, lhand=135, rhand=135, obj=9, bps=1024
+    # 5 entities (body + lh + rh + 2 objects), total dynamic = 489D
+    # Output matches HIMO evaluator format exactly
+
+
+### HIMO 3-object V4 model (498D, position-only, 6 entities)
+@dataclass
+class himo_v4_3o(
+        data.himo_v4_3o,
+):
+    save_dir: str = 'save/himo_v4_3o'
+    # V4 entity dims: body=201, lhand=135, rhand=135, obj=9, bps=1024
+    # 6 entities (body + lh + rh + 3 objects), total dynamic = 498D
+    # Output matches HIMO evaluator format exactly

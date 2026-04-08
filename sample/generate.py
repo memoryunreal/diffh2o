@@ -153,17 +153,12 @@ def main():
         for i in range(len(texts)):
             obj_name = [s for s in OBJECT_LIST_NEW if s in texts_pre[i]]
             obj_name_post = [s for s in OBJECT_LIST_NEW if s in texts[i]]
+
             assert len(obj_name) >= 1
             if len(obj_name) > 1:
                 if 'phone' in obj_name:
                     obj_name = ['phone']
-                else:
-                    obj_name = ['wristwatch']
-            assert len(obj_name) >= 1
-            if len(obj_name) > 1:
-                if 'phone' in obj_name:
-                    obj_name = ['phone']
-                else:
+                elif 'wristwatch' in obj_name:
                     obj_name = ['wristwatch']
 
             texts_pre[i] = texts_pre[i].replace(obj_name[0], obj_name_post[0])

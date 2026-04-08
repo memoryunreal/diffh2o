@@ -47,7 +47,7 @@ def get_model_args(args: FullModelOptions, data: DataLoader):
     action_emb = 'tensor'
     if args.unconstrained:
         cond_mode = 'no_cond'
-    elif args.dataset in ['kit', 'humanml', 'grab', 'oakink2']:
+    elif args.dataset in ['kit', 'humanml', 'grab', 'oakink2', 'oakink2_transition', 'grab_transition']:
         cond_mode = 'text'
     else:
         cond_mode = 'action'
@@ -74,6 +74,14 @@ def get_model_args(args: FullModelOptions, data: DataLoader):
         data_rep = 'hml_vec'
         nfeats = 1
         njoints = 398  # OakInk2 feature dimension
+    elif args.dataset == 'oakink2_transition':
+        data_rep = 'hml_vec'
+        nfeats = 1
+        njoints = 398  # OakInk2 transition feature dimension
+    elif args.dataset == 'grab_transition':
+        data_rep = 'hml_vec'
+        nfeats = 1
+        njoints = 117  # GRAB transition feature dimension
     elif args.dataset == 'kit':
         data_rep = 'hml_vec'
         njoints = 251

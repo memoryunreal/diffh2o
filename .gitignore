@@ -1,0 +1,109 @@
+# ===== Data & Models (large) =====
+HIMO_dataset/
+save/
+output/
+debug_vis/
+data/
+wandb/
+glove/
+priorMDM/
+program/
+body_models/
+
+# Dataset directories (processed data, representations)
+dataset/GRAB/
+dataset/GRAB_HANDS/diffh2o_representation_*/
+dataset/GRAB_HANDS/texts_*/
+dataset/GRAB_HANDS/rand_proj_diffh2o.npy
+dataset/GRAB_V4/
+dataset/HIMO_V4_*/
+dataset/INTERACT_*/
+dataset/OAKINK2*/
+dataset/OAKINK2_*/
+
+# Body model assets (symlinks to external data)
+assets/male
+assets/female
+assets/contact_meshes
+body_models
+
+# External data symlinks
+dataset/GRAB
+glove
+
+# ===== Visualization media =====
+*.mp4
+*.avi
+*.mov
+*.webm
+*.gif
+project_page/static/videos/
+
+# Frame sequences
+*_frames/
+vid_*/
+
+# 3D mesh exports
+*.obj
+*.ply
+*.stl
+*.off
+
+# ===== Large binary data =====
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.pt
+*.pth
+*.ckpt
+*.bin
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# ===== IDE & editor =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ===== Claude Code =====
+.claude/
+
+# ===== Logs =====
+*.log
+eval_all.log
+eval_resul
+
+# ===== LaTeX build artifacts =====
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.out
+*.toc
+*.lof
+*.lot
+*.run.xml
+*.bcf
+
+# ===== Misc =====
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+wandb_init.sh

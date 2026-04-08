@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRR-Flow: State-Aware Autoregressive Flow for Long-Horizon Human-Object Interaction Generation</title>
+  <meta name="description" content="CRR-Flow couples high-level task planning with state-aware motion synthesis via conditional flow matching for long-horizon human-object interaction generation.">
+
+  <!-- Bulma CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="static/css/custom.css">
+</head>
+<body>
+
+<!-- ================================================================
+     HERO SECTION
+     ================================================================ -->
+<section class="hero-section">
+  <div class="hero-content">
+    <div class="venue-badge">ACM Multimedia 2026</div>
+    <h1 class="paper-title">
+      CRR-Flow: State-Aware Autoregressive Flow for<br>
+      Long-Horizon Human-Object Interaction Generation
+    </h1>
+    <p class="authors">Anonymous Authors (Under Review)</p>
+    <div class="hero-links">
+      <a href="#" class="btn-primary"><i class="fas fa-file-pdf"></i> Paper</a>
+      <a href="#" class="btn-outline"><i class="fas fa-archive"></i> arXiv</a>
+      <a href="#" class="btn-outline"><i class="fab fa-github"></i> Code</a>
+      <a href="#" class="btn-outline"><i class="fas fa-video"></i> Video</a>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     TEASER
+     ================================================================ -->
+<section class="content-section">
+  <div class="teaser-container">
+    <img src="static/images/tease.png" alt="CRR-Flow teaser figure showing long-horizon multi-object manipulation generation">
+    <p class="teaser-caption">
+      CRR-Flow generates long-horizon, multi-object manipulation from multi-step instructions.
+      Given consecutive primitive instructions, an LLM-based planner produces a per-slot state
+      timeline that assigns discrete interaction phases to each slot. A slot-centric Diffusion
+      Transformer synthesizes motion, while a block-wise autoregressive relay propagates kinematic
+      history across segment boundaries.
+    </p>
+  </div>
+</section>
+
+<!-- ================================================================
+     ABSTRACT
+     ================================================================ -->
+<section class="content-section alt-bg">
+  <div class="section-inner">
+    <h2 class="section-title">Abstract</h2>
+    <div class="abstract-text">
+      <p>
+        Synthesizing long-horizon 3D human-object interactions (HOI) in which a person manipulates
+        multiple objects across a continuous sequence of phases is an open problem. Current generative
+        approaches produce motion primitives independently, typically resetting from a canonical rest
+        pose, and therefore cannot model the evolving correspondence between the human body and objects
+        as physical states change. This results in abrupt transitions at primitive boundaries and a
+        progressive loss of contact consistency over extended horizons.
+      </p>
+      <p style="margin-top: 1rem;">
+        We present <strong>CRR-Flow</strong> (Contact-Reach-Release Flow), a framework that couples
+        high-level task planning with state-aware motion synthesis via conditional flow matching.
+        An LLM-based planner first decomposes multi-step instructions into per-slot physical state
+        schedules, assigning a discrete interaction phase to each interaction component (body, hands,
+        and objects) over contiguous temporal segments. These schedules condition a slot-centric
+        Diffusion Transformer whose dedicated spatial tokens per interaction component allow each to
+        receive its own state and geometry information. A block-wise autoregressive strategy in which
+        each generation block is conditioned on the terminal kinematic history of the previous block,
+        propagating position and velocity across primitive boundaries.
+      </p>
+      <p style="margin-top: 1rem;">
+        Experiments on OakInk2 show that CRR-Flow reduces FID by 84.5% relative to InterAct HOIDiff
+        (0.438 vs. 2.821) and achieves long-horizon generation over 60+ seconds with only 8.6%
+        degradation from single-segment quality.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     METHOD OVERVIEW
+     ================================================================ -->
+<section class="content-section">
+  <h2 class="section-title">Method Overview</h2>
+  <p class="section-subtitle">
+    CRR-Flow combines an LLM state planner, slot-centric flow matching, and block-wise
+    autoregressive relay for long-horizon generation.
+  </p>
+  <img class="method-image" src="static/images/framework.png" alt="CRR-Flow framework overview">
+  <div class="method-columns">
+    <div class="method-card">
+      <h4>(a) LLM State Planner</h4>
+      <p>
+        Decomposes multi-step instructions into per-slot state timelines, assigning a discrete
+        interaction phase (Contact, Reach, Release, Idle) to each body component and object across
+        contiguous temporal segments.
+      </p>
+    </div>
+    <div class="method-card">
+      <h4>(b) Slot-Centric Flow Matching</h4>
+      <p>
+        Dedicated spatial tokens for body, hands, and each object allow per-component state injection
+        and geometry conditioning within a Diffusion Transformer architecture.
+      </p>
+    </div>
+    <div class="method-card">
+      <h4>(c) Block-wise AR Relay</h4>
+      <p>
+        Propagates kinematic history (position and velocity) from the terminal frames of each
+        generation block to the next, ensuring smooth transitions across primitive boundaries.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     OAKINK2 COMPARISON VIDEOS
+     ================================================================ -->
+<section class="content-section alt-bg" id="oakink2-results">
+  <div class="section-inner">
+    <h2 class="section-title">Qualitative Comparison on OakInk2</h2>
+    <p class="section-subtitle">
+      Side-by-side comparison of generated motions across 10 diverse manipulation tasks.
+      Click a task name to switch the view.
+    </p>
+
+    <!-- Tab buttons -->
+    <div class="tab-group" data-target="oakink2">
+      <button class="tab-btn active" data-tab="scoop_cheese">Scoop Cheese</button>
+      <button class="tab-btn" data-tab="rearrange_plate">Rearrange Plate</button>
+      <button class="tab-btn" data-tab="take_donut">Take Donut</button>
+      <button class="tab-btn" data-tab="insert_lightbulb">Insert Lightbulb</button>
+      <button class="tab-btn" data-tab="cut_bread">Cut Bread</button>
+      <button class="tab-btn" data-tab="grip_sugar_cubes">Grip Sugar Cubes</button>
+      <button class="tab-btn" data-tab="open_microwave">Open Microwave</button>
+      <button class="tab-btn" data-tab="plug_in_lamp">Plug In Lamp</button>
+      <button class="tab-btn" data-tab="pour_fryingpan">Pour Fryingpan</button>
+      <button class="tab-btn" data-tab="pull_out_drawer">Pull Out Drawer</button>
+    </div>
+
+    <p class="sync-play-hint"><i class="fas fa-sync-alt"></i> Videos are synchronized. Play or seek any one to control all.</p>
+
+    <!-- scoop_cheese -->
+    <div class="video-compare-container oakink2-container active" data-id="scoop_cheese">
+      <div class="video-compare-grid cols-4">
+        <div class="video-cell">
+          <div class="video-label">Ground Truth</div>
+          <video src="static/videos/oakink2/scoop_cheese/gt.mp4" autoplay muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">InterAct HOIDiff</div>
+          <video src="static/videos/oakink2/scoop_cheese/interact.mp4" autoplay muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">PriorMDM</div>
+          <video src="static/videos/oakink2/scoop_cheese/priormdm.mp4" autoplay muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label ours-label">CRR-Flow (Ours)</div>
+          <video src="static/videos/oakink2/scoop_cheese/ours.mp4" autoplay muted loop playsinline></video>
+        </div>
+      </div>
+      <p class="scene-caption">"Scoop cheese from the plate with the spoon"</p>
+    </div>
+
+    <!-- rearrange_plate -->
+    <div class="video-compare-container oakink2-container" data-id="rearrange_plate">
+      <div class="video-compare-grid cols-4">
+        <div class="video-cell">
+          <div class="video-label">Ground Truth</div>
+          <video data-src="static/videos/oakink2/rearrange_plate/gt.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">InterAct HOIDiff</div>
+          <video data-src="static/videos/oakink2/rearrange_plate/interact.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">PriorMDM</div>
+          <video data-src="static/videos/oakink2/rearrange_plate/priormdm.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label ours-label">CRR-Flow (Ours)</div>
+          <video data-src="static/videos/oakink2/rearrange_plate/ours.mp4" muted loop playsinline></video>
+        </div>
+      </div>
+      <p class="scene-caption">"Pick up the plate and rearrange it on the table"</p>
+    </div>
+
+    <!-- take_donut -->
+    <div class="video-compare-container oakink2-container" data-id="take_donut">
+      <div class="video-compare-grid cols-4">
+        <div class="video-cell">
+          <div class="video-label">Ground Truth</div>
+          <video data-src="static/videos/oakink2/take_donut/gt.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">InterAct HOIDiff</div>
+          <video data-src="static/videos/oakink2/take_donut/interact.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">PriorMDM</div>
+          <video data-src="static/videos/oakink2/take_donut/priormdm.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label ours-label">CRR-Flow (Ours)</div>
+          <video data-src="static/videos/oakink2/take_donut/ours.mp4" muted loop playsinline></video>
+        </div>
+      </div>
+      <p class="scene-caption">"Take the donut from the box"</p>
+    </div>
+
+    <!-- insert_lightbulb -->
+    <div class="video-compare-container oakink2-container" data-id="insert_lightbulb">
+      <div class="video-compare-grid cols-4">
+        <div class="video-cell">
+          <div class="video-label">Ground Truth</div>
+          <video data-src="static/videos/oakink2/insert_lightbulb/gt.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">InterAct HOIDiff</div>
+          <video data-src="static/videos/oakink2/insert_lightbulb/interact.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">PriorMDM</div>
+          <video data-src="static/videos/oakink2/insert_lightbulb/priormdm.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label ours-label">CRR-Flow (Ours)</div>
+          <video data-src="static/videos/oakink2/insert_lightbulb/ours.mp4" muted loop playsinline></video>
+        </div>
+      </div>
+      <p class="scene-caption">"Insert the lightbulb into the socket"</p>
+    </div>
+
+    <!-- cut_bread -->
+    <div class="video-compare-container oakink2-container" data-id="cut_bread">
+      <div class="video-compare-grid cols-4">
+        <div class="video-cell">
+          <div class="video-label">Ground Truth</div>
+          <video data-src="static/videos/oakink2/cut_bread/gt.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">InterAct HOIDiff</div>
+          <video data-src="static/videos/oakink2/cut_bread/interact.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">PriorMDM</div>
+          <video data-src="static/videos/oakink2/cut_bread/priormdm.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label ours-label">CRR-Flow (Ours)</div>
+          <video data-src="static/videos/oakink2/cut_bread/ours.mp4" muted loop playsinline></video>
+        </div>
+      </div>
+      <p class="scene-caption">"Cut the bread with the knife"</p>
+    </div>
+
+    <!-- grip_sugar_cubes -->
+    <div class="video-compare-container oakink2-container" data-id="grip_sugar_cubes">
+      <div class="video-compare-grid cols-4">
+        <div class="video-cell">
+          <div class="video-label">Ground Truth</div>
+          <video data-src="static/videos/oakink2/grip_sugar_cubes/gt.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">InterAct HOIDiff</div>
+          <video data-src="static/videos/oakink2/grip_sugar_cubes/interact.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">PriorMDM</div>
+          <video data-src="static/videos/oakink2/grip_sugar_cubes/priormdm.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label ours-label">CRR-Flow (Ours)</div>
+          <video data-src="static/videos/oakink2/grip_sugar_cubes/ours.mp4" muted loop playsinline></video>
+        </div>
+      </div>
+      <p class="scene-caption">"Grip the sugar cubes from the bowl"</p>
+    </div>
+
+    <!-- open_microwave -->
+    <div class="video-compare-container oakink2-container" data-id="open_microwave">
+      <div class="video-compare-grid cols-4">
+        <div class="video-cell">
+          <div class="video-label">Ground Truth</div>
+          <video data-src="static/videos/oakink2/open_microwave/gt.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">InterAct HOIDiff</div>
+          <video data-src="static/videos/oakink2/open_microwave/interact.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">PriorMDM</div>
+          <video data-src="static/videos/oakink2/open_microwave/priormdm.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label ours-label">CRR-Flow (Ours)</div>
+          <video data-src="static/videos/oakink2/open_microwave/ours.mp4" muted loop playsinline></video>
+        </div>
+      </div>
+      <p class="scene-caption">"Open the microwave door"</p>
+    </div>
+
+    <!-- plug_in_lamp -->
+    <div class="video-compare-container oakink2-container" data-id="plug_in_lamp">
+      <div class="video-compare-grid cols-4">
+        <div class="video-cell">
+          <div class="video-label">Ground Truth</div>
+          <video data-src="static/videos/oakink2/plug_in_lamp/gt.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">InterAct HOIDiff</div>
+          <video data-src="static/videos/oakink2/plug_in_lamp/interact.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">PriorMDM</div>
+          <video data-src="static/videos/oakink2/plug_in_lamp/priormdm.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label ours-label">CRR-Flow (Ours)</div>
+          <video data-src="static/videos/oakink2/plug_in_lamp/ours.mp4" muted loop playsinline></video>
+        </div>
+      </div>
+      <p class="scene-caption">"Plug in the lamp"</p>
+    </div>
+
+    <!-- pour_fryingpan -->
+    <div class="video-compare-container oakink2-container" data-id="pour_fryingpan">
+      <div class="video-compare-grid cols-4">
+        <div class="video-cell">
+          <div class="video-label">Ground Truth</div>
+          <video data-src="static/videos/oakink2/pour_fryingpan/gt.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">InterAct HOIDiff</div>
+          <video data-src="static/videos/oakink2/pour_fryingpan/interact.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">PriorMDM</div>
+          <video data-src="static/videos/oakink2/pour_fryingpan/priormdm.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label ours-label">CRR-Flow (Ours)</div>
+          <video data-src="static/videos/oakink2/pour_fryingpan/ours.mp4" muted loop playsinline></video>
+        </div>
+      </div>
+      <p class="scene-caption">"Pour from the pan"</p>
+    </div>
+
+    <!-- pull_out_drawer -->
+    <div class="video-compare-container oakink2-container" data-id="pull_out_drawer">
+      <div class="video-compare-grid cols-4">
+        <div class="video-cell">
+          <div class="video-label">Ground Truth</div>
+          <video data-src="static/videos/oakink2/pull_out_drawer/gt.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">InterAct HOIDiff</div>
+          <video data-src="static/videos/oakink2/pull_out_drawer/interact.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">PriorMDM</div>
+          <video data-src="static/videos/oakink2/pull_out_drawer/priormdm.mp4" muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label ours-label">CRR-Flow (Ours)</div>
+          <video data-src="static/videos/oakink2/pull_out_drawer/ours.mp4" muted loop playsinline></video>
+        </div>
+      </div>
+      <p class="scene-caption">"Pull out the drawer"</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================================================================
+     HIMO CROSS-DATASET COMPARISON
+     ================================================================ -->
+<section class="content-section" id="himo-results">
+  <h2 class="section-title">Cross-Dataset Evaluation on HIMO</h2>
+  <p class="section-subtitle">
+    Zero-shot transfer to the HIMO benchmark, comparing against methods
+    trained natively on HIMO data.
+  </p>
+
+  <!-- Tab buttons -->
+  <div class="tab-group" data-target="himo">
+    <button class="tab-btn active" data-tab="sample_000">Sample 0</button>
+    <button class="tab-btn" data-tab="sample_001">Sample 1</button>
+    <button class="tab-btn" data-tab="sample_002">Sample 2</button>
+    <button class="tab-btn" data-tab="sample_003">Sample 3</button>
+    <button class="tab-btn" data-tab="sample_004">Sample 4</button>
+  </div>
+
+  <p class="sync-play-hint"><i class="fas fa-sync-alt"></i> Videos are synchronized. Play or seek any one to control all.</p>
+
+  <!-- sample_000 -->
+  <div class="video-compare-container himo-container active" data-id="sample_000">
+    <div class="video-compare-grid cols-6">
+      <div class="video-cell">
+        <div class="video-label">GT</div>
+        <video src="static/videos/himo/sample_000/gt.mp4" autoplay muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">HIMO</div>
+        <video src="static/videos/himo/sample_000/himo.mp4" autoplay muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">HOIDiff</div>
+        <video src="static/videos/himo/sample_000/hoidiff.mp4" autoplay muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">MDM</div>
+        <video src="static/videos/himo/sample_000/mdm.mp4" autoplay muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">PriorMDM</div>
+        <video src="static/videos/himo/sample_000/pmdm.mp4" autoplay muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label ours-label">Ours</div>
+        <video src="static/videos/himo/sample_000/ours.mp4" autoplay muted loop playsinline></video>
+      </div>
+    </div>
+    <p class="scene-caption">
+      "One person picks up the phone with his right hand and the headset with his left hand."
+      <br><small>Objects: Headset, Phone</small>
+    </p>
+  </div>
+
+  <!-- sample_001 -->
+  <div class="video-compare-container himo-container" data-id="sample_001">
+    <div class="video-compare-grid cols-6">
+      <div class="video-cell">
+        <div class="video-label">GT</div>
+        <video data-src="static/videos/himo/sample_001/gt.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">HIMO</div>
+        <video data-src="static/videos/himo/sample_001/himo.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">HOIDiff</div>
+        <video data-src="static/videos/himo/sample_001/hoidiff.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">MDM</div>
+        <video data-src="static/videos/himo/sample_001/mdm.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">PriorMDM</div>
+        <video data-src="static/videos/himo/sample_001/pmdm.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label ours-label">Ours</div>
+        <video data-src="static/videos/himo/sample_001/ours.mp4" muted loop playsinline></video>
+      </div>
+    </div>
+    <p class="scene-caption">
+      "The performer picks up the hammer with his right hand and holds the beer with his left hand, hitting the beer with the hammer."
+      <br><small>Objects: Beer, Hammer</small>
+    </p>
+  </div>
+
+  <!-- sample_002 -->
+  <div class="video-compare-container himo-container" data-id="sample_002">
+    <div class="video-compare-grid cols-6">
+      <div class="video-cell">
+        <div class="video-label">GT</div>
+        <video data-src="static/videos/himo/sample_002/gt.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">HIMO</div>
+        <video data-src="static/videos/himo/sample_002/himo.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">HOIDiff</div>
+        <video data-src="static/videos/himo/sample_002/hoidiff.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">MDM</div>
+        <video data-src="static/videos/himo/sample_002/mdm.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">PriorMDM</div>
+        <video data-src="static/videos/himo/sample_002/pmdm.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label ours-label">Ours</div>
+        <video data-src="static/videos/himo/sample_002/ours.mp4" muted loop playsinline></video>
+      </div>
+    </div>
+    <p class="scene-caption">
+      "The person picks up the bottle, puts it down, then picks up the hammer and strikes the bottle."
+      <br><small>Objects: Bottle, Hammer</small>
+    </p>
+  </div>
+
+  <!-- sample_003 -->
+  <div class="video-compare-container himo-container" data-id="sample_003">
+    <div class="video-compare-grid cols-6">
+      <div class="video-cell">
+        <div class="video-label">GT</div>
+        <video data-src="static/videos/himo/sample_003/gt.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">HIMO</div>
+        <video data-src="static/videos/himo/sample_003/himo.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">HOIDiff</div>
+        <video data-src="static/videos/himo/sample_003/hoidiff.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">MDM</div>
+        <video data-src="static/videos/himo/sample_003/mdm.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">PriorMDM</div>
+        <video data-src="static/videos/himo/sample_003/pmdm.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label ours-label">Ours</div>
+        <video data-src="static/videos/himo/sample_003/ours.mp4" muted loop playsinline></video>
+      </div>
+    </div>
+    <p class="scene-caption">
+      "A guy picks up the phone in his right hand, puts it to his ear, and then places the phone on the phoneholder, holding the holder with his left hand."
+      <br><small>Objects: Phone, Phoneholder</small>
+    </p>
+  </div>
+
+  <!-- sample_004 -->
+  <div class="video-compare-container himo-container" data-id="sample_004">
+    <div class="video-compare-grid cols-6">
+      <div class="video-cell">
+        <div class="video-label">GT</div>
+        <video data-src="static/videos/himo/sample_004/gt.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">HIMO</div>
+        <video data-src="static/videos/himo/sample_004/himo.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">HOIDiff</div>
+        <video data-src="static/videos/himo/sample_004/hoidiff.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">MDM</div>
+        <video data-src="static/videos/himo/sample_004/mdm.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label">PriorMDM</div>
+        <video data-src="static/videos/himo/sample_004/pmdm.mp4" muted loop playsinline></video>
+      </div>
+      <div class="video-cell">
+        <div class="video-label ours-label">Ours</div>
+        <video data-src="static/videos/himo/sample_004/ours.mp4" muted loop playsinline></video>
+      </div>
+    </div>
+    <p class="scene-caption">
+      "A person places pyramid-M on cylinder-M with his left hand."
+      <br><small>Objects: Cylinder-M, Pyramid-M</small>
+    </p>
+  </div>
+</section>
+
+<!-- ================================================================
+     LONG-HORIZON GENERATION
+     ================================================================ -->
+<section class="content-section alt-bg" id="long-horizon">
+  <div class="section-inner">
+    <h2 class="section-title">Long-Horizon Autoregressive Generation</h2>
+    <p class="section-subtitle">
+      CRR-Flow chains multiple generation blocks via kinematic history relay,
+      generating 60+ seconds of continuous multi-object manipulation.
+    </p>
+
+    <div class="long-horizon-videos">
+      <div class="video-compare-grid cols-3">
+        <div class="video-cell">
+          <div class="video-label">Ground Truth</div>
+          <video src="static/videos/oakink2/scoop_cheese/gt_full.mp4" autoplay muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label">CRR-Flow (Gen body + GT objects)</div>
+          <video src="static/videos/oakink2/scoop_cheese/ours_gt_obj_full.mp4" autoplay muted loop playsinline></video>
+        </div>
+        <div class="video-cell">
+          <div class="video-label ours-label">CRR-Flow (Full generation)</div>
+          <video src="static/videos/oakink2/scoop_cheese/ours_full.mp4" autoplay muted loop playsinline></video>
+        </div>
+      </div>
+      <p class="scene-caption">
+        Scoop cheese sequence: 3 segments, 560 frames (~56 seconds).
+        The autoregressive relay maintains contact consistency across segment boundaries.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     QUANTITATIVE RESULTS
+     ================================================================ -->
+<section class="content-section" id="quantitative">
+  <h2 class="section-title">Quantitative Results</h2>
+
+  <!-- Table 1: Main OakInk2 -->
+  <h3 style="text-align:center; font-size:1.1rem; font-weight:600; margin-top:2rem; margin-bottom:0.8rem;">
+    Table 1. Main Results on OakInk2
+  </h3>
+  <div class="results-table-wrapper">
+    <table class="results-table">
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>R@1 &uarr;</th>
+          <th>R@2 &uarr;</th>
+          <th>R@3 &uarr;</th>
+          <th>FID &darr;</th>
+          <th>Match &darr;</th>
+          <th>Div &rarr;</th>
+          <th>MultiMod &rarr;</th>
+          <th>M-MSE &darr;</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>PriorMDM&dagger;</td>
+          <td>0.410</td>
+          <td>0.519</td>
+          <td>0.585</td>
+          <td>15.701</td>
+          <td>13.836</td>
+          <td>5.302</td>
+          <td>5.326</td>
+          <td>&mdash;</td>
+        </tr>
+        <tr>
+          <td>InterAct HOIDiff&Dagger;</td>
+          <td>0.641</td>
+          <td>0.796</td>
+          <td>0.910</td>
+          <td>2.821</td>
+          <td>5.919</td>
+          <td>1.494</td>
+          <td>2.233</td>
+          <td>0.0385</td>
+        </tr>
+        <tr>
+          <td>CRR-Flow w/o AR</td>
+          <td>0.672</td>
+          <td>0.859</td>
+          <td>0.940</td>
+          <td>0.445</td>
+          <td>3.370</td>
+          <td>1.407</td>
+          <td>1.923</td>
+          <td>0.0202</td>
+        </tr>
+        <tr class="ours-row">
+          <td>CRR-Flow (Ours)</td>
+          <td class="best-val">0.720</td>
+          <td class="best-val">0.891</td>
+          <td class="best-val">0.953</td>
+          <td class="best-val">0.438</td>
+          <td class="best-val">3.010</td>
+          <td>1.256</td>
+          <td>0.681</td>
+          <td class="best-val">0.0140</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">
+    &dagger; Body-only (no object generation). &Dagger; Trained on primitive-level data.
+    Bold red values indicate best performance. &uarr; higher is better, &darr; lower is better, &rarr; closer to real is better.
+  </p>
+
+  <!-- Table 2: HIMO Cross-Dataset -->
+  <h3 style="text-align:center; font-size:1.1rem; font-weight:600; margin-top:2.5rem; margin-bottom:0.8rem;">
+    Table 2. Cross-Dataset Evaluation on HIMO
+  </h3>
+  <div class="results-table-wrapper">
+    <table class="results-table">
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>R@1 &uarr;</th>
+          <th>R@2 &uarr;</th>
+          <th>R@3 &uarr;</th>
+          <th>FID &darr;</th>
+          <th>Match &darr;</th>
+          <th>Div &rarr;</th>
+          <th>MultiMod &rarr;</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>MDM</td>
+          <td>0.026</td>
+          <td>0.065</td>
+          <td>0.093</td>
+          <td>39.510</td>
+          <td>14.621</td>
+          <td>2.831</td>
+          <td>1.826</td>
+        </tr>
+        <tr>
+          <td>PriorMDM</td>
+          <td>0.024</td>
+          <td>0.058</td>
+          <td>0.088</td>
+          <td>40.272</td>
+          <td>15.104</td>
+          <td>2.776</td>
+          <td>1.590</td>
+        </tr>
+        <tr>
+          <td>HIMO</td>
+          <td>0.105</td>
+          <td>0.193</td>
+          <td>0.285</td>
+          <td>18.143</td>
+          <td>11.298</td>
+          <td>3.108</td>
+          <td>2.474</td>
+        </tr>
+        <tr>
+          <td>HOIDiff</td>
+          <td>0.114</td>
+          <td>0.210</td>
+          <td>0.299</td>
+          <td>17.651</td>
+          <td>11.082</td>
+          <td>2.960</td>
+          <td>2.349</td>
+        </tr>
+        <tr class="ours-row">
+          <td>CRR-Flow (Ours)</td>
+          <td class="best-val">0.139</td>
+          <td class="best-val">0.248</td>
+          <td class="best-val">0.342</td>
+          <td class="best-val">15.219</td>
+          <td class="best-val">10.523</td>
+          <td>2.894</td>
+          <td>2.187</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">
+    All methods evaluated on the HIMO test set. CRR-Flow was trained on OakInk2 (zero-shot transfer).
+  </p>
+
+  <!-- Table 3: Long-Horizon -->
+  <h3 style="text-align:center; font-size:1.1rem; font-weight:600; margin-top:2.5rem; margin-bottom:0.8rem;">
+    Table 3. Long-Horizon Autoregressive Generation
+  </h3>
+  <div class="results-table-wrapper">
+    <table class="results-table">
+      <thead>
+        <tr>
+          <th>Task</th>
+          <th>Segments</th>
+          <th>Frames (Duration)</th>
+          <th>M-MSE &darr;</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Rearrange plate</td>
+          <td>4</td>
+          <td>740 (74s)</td>
+          <td>0.0116</td>
+        </tr>
+        <tr>
+          <td>Scoop cheese</td>
+          <td>3</td>
+          <td>560 (56s)</td>
+          <td>0.0185</td>
+        </tr>
+        <tr>
+          <td>Insert lightbulb</td>
+          <td>3</td>
+          <td>560 (56s)</td>
+          <td>0.0139</td>
+        </tr>
+        <tr>
+          <td>Take donut</td>
+          <td>3</td>
+          <td>560 (56s)</td>
+          <td>0.0167</td>
+        </tr>
+        <tr class="ours-row">
+          <td>Average</td>
+          <td>3.25</td>
+          <td>605 (60.5s)</td>
+          <td class="best-val">0.0152</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="table-note">
+    Long-horizon M-MSE (0.0152) represents only 8.6% degradation from single-segment quality (0.0140).
+  </p>
+</section>
+
+<!-- ================================================================
+     BIBTEX
+     ================================================================ -->
+<section class="content-section alt-bg" id="citation">
+  <div class="section-inner">
+    <h2 class="section-title">Citation</h2>
+    <div class="bibtex-block">
+      <button class="copy-btn" id="copy-bibtex"><i class="fas fa-copy"></i> Copy</button>
+      <pre id="bibtex-text">@inproceedings{crrflow2026acmmm,
+  title={CRR-Flow: State-Aware Autoregressive Flow for Long-Horizon
+         Human-Object Interaction Generation},
+  author={Anonymous},
+  booktitle={Proceedings of the ACM International Conference
+             on Multimedia (ACM MM)},
+  year={2026}
+}</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================
+     FOOTER
+     ================================================================ -->
+<footer class="site-footer">
+  <p>
+    This website template is inspired by the
+    <a href="https://nerfies.github.io/" target="_blank" rel="noopener">Academic Project Page Template</a>.
+  </p>
+  <p style="margin-top: 0.5rem;">
+    For questions and feedback, please contact the anonymous authors.
+  </p>
+</footer>
+
+<!-- Custom JS -->
+<script src="static/js/index.js"></script>
+</body>
+</html>

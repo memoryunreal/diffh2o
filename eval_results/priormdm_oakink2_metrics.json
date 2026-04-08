@@ -1,0 +1,17 @@
+{
+  "method": "PriorMDM DoubleTake",
+  "num_samples": 33,
+  "fid": 157.0143477376346,
+  "r_prec_1": 0.030303030303030304,
+  "r_prec_2": 0.09090909090909091,
+  "r_prec_3": 0.12121212121212122,
+  "matching": 13.835695584615072,
+  "diversity": 5.301588535308838,
+  "body_mse_mean": 318.79211950240807,
+  "body_mse_std": 287.2586169148377,
+  "jitter_mean": 0.0021338094407038657,
+  "jitter_std": 0.0021643570991512827,
+  "lh_jitter_mean": 0.006591080959575872,
+  "obj_pos": null,
+  "contact_f1": null
+}

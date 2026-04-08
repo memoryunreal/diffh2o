@@ -190,7 +190,7 @@ class EvalNode:
             obj_mesh = trimesh.load(os.path.join(self.obj_model_path,obj_name+'.ply'), process=False)
             obj_verts_num = int(obj_mesh.vertices.shape[0] * 0.01)
 
-            obj_mesh = obj_mesh.simplify_quadratic_decimation(obj_verts_num)
+            obj_mesh = obj_mesh.simplify_quadric_decimation(obj_verts_num)
             trimesh.repair.fix_normals(obj_mesh)
             if '_m' == seq_name[-2:]:
                 obj_mesh.vertices[...,0] *= -1

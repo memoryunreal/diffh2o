@@ -1,0 +1,49 @@
+{
+  "model_path": "save/v4_omomo_200k/model000100000.pt",
+  "model_version": "v4",
+  "data_root": "dataset/INTERACT_OMOMO_V4",
+  "step": "000100000",
+  "num_samples": 430,
+  "num_repeats": 2,
+  "smooth_window": 0,
+  "metrics": {
+    "fid_mean": 8.529962111686281,
+    "fid_std": 0.10402798558649096,
+    "r_prec_1_mean": 0.012790697674418604,
+    "r_prec_1_std": 0.0011627906976744186,
+    "r_prec_2_mean": 0.02441860465116279,
+    "r_prec_2_std": 0.0011627906976744186,
+    "r_prec_3_mean": 0.033720930232558136,
+    "r_prec_3_std": 0.0011627906976744186,
+    "matching_pred_mean": 10.526533466161684,
+    "matching_pred_std": 0.0014317756475401566,
+    "matching_real_mean": 9.784141604844914,
+    "matching_real_std": 0.0022016170412992864,
+    "diversity_mean": 8.74001169204712,
+    "diversity_std": 0.19976472854614258,
+    "diversity_real_mean": 9.917276859283447,
+    "diversity_real_std": 0.06854867935180664
+  },
+  "per_repeat": [
+    {
+      "fid": 8.633990097272772,
+      "r_prec_1": 0.011627906976744186,
+      "r_prec_2": 0.02558139534883721,
+      "r_prec_3": 0.03255813953488372,
+      "matching_pred": 10.527965241809223,
+      "matching_real": 9.786343221886213,
+      "diversity": 8.540246963500977,
+      "diversity_real": 9.985825538635254
+    },
+    {
+      "fid": 8.42593412609979,
+      "r_prec_1": 0.013953488372093023,
+      "r_prec_2": 0.023255813953488372,
+      "r_prec_3": 0.03488372093023256,
+      "matching_pred": 10.525101690514143,
+      "matching_real": 9.781939987803614,
+      "diversity": 8.939776420593262,
+      "diversity_real": 9.84872817993164
+    }
+  ]
+}

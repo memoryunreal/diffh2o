@@ -1,0 +1,526 @@
+/* ========================================================================
+   CRR-Flow Project Page - Custom Styles
+   ======================================================================== */
+
+/* --- Base & Typography --- */
+:root {
+  --primary: #4a6cf7;
+  --primary-dark: #3451b2;
+  --accent: #e8513d;
+  --bg-dark: #1a1a2e;
+  --bg-section-alt: #f7f8fc;
+  --text-primary: #2c3e50;
+  --text-secondary: #5a6a7e;
+  --border-light: #e2e8f0;
+  --ours-highlight: #eef3ff;
+  --radius: 8px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,0.12);
+  --transition: 0.25s ease;
+}
+
+body {
+  font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Hero Section --- */
+.hero-section {
+  background: linear-gradient(135deg, var(--bg-dark) 0%, #16213e 50%, #0f3460 100%);
+  padding: 5rem 1.5rem 4rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(74,108,247,0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 50%, rgba(232,81,61,0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.hero-section .hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.hero-section .paper-title {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.3;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.01em;
+}
+
+.hero-section .venue-badge {
+  display: inline-block;
+  background: rgba(74,108,247,0.2);
+  border: 1px solid rgba(74,108,247,0.4);
+  color: #a8c0ff;
+  padding: 0.3rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 1.2rem;
+  letter-spacing: 0.04em;
+}
+
+.hero-section .authors {
+  color: #b0bec5;
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+  font-style: italic;
+}
+
+.hero-links {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.hero-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.4rem;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all var(--transition);
+  text-decoration: none;
+}
+
+.hero-links a.btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+.hero-links a.btn-primary:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(74,108,247,0.35);
+}
+
+.hero-links a.btn-outline {
+  background: transparent;
+  color: #cfd8dc;
+  border: 1.5px solid rgba(255,255,255,0.25);
+}
+.hero-links a.btn-outline:hover {
+  border-color: rgba(255,255,255,0.5);
+  color: #fff;
+  background: rgba(255,255,255,0.06);
+}
+
+/* --- Content Sections --- */
+.content-section {
+  padding: 4rem 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.content-section.alt-bg {
+  background: var(--bg-section-alt);
+  max-width: 100%;
+}
+
+.content-section.alt-bg > .section-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+.section-title::after {
+  content: '';
+  display: block;
+  width: 50px;
+  height: 3px;
+  background: var(--primary);
+  margin: 0.8rem auto 0;
+  border-radius: 2px;
+}
+
+.section-subtitle {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  max-width: 700px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.6;
+}
+
+/* --- Teaser --- */
+.teaser-container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.teaser-container img {
+  width: 100%;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+
+.teaser-caption {
+  margin-top: 1rem;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  text-align: center;
+  max-width: 960px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* --- Abstract --- */
+.abstract-text {
+  max-width: 860px;
+  margin: 0 auto;
+  font-size: 1.02rem;
+  line-height: 1.75;
+  color: var(--text-primary);
+  text-align: justify;
+}
+
+/* --- Method Overview --- */
+.method-image {
+  width: 100%;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  margin-bottom: 2rem;
+}
+
+.method-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.method-card {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+  transition: box-shadow var(--transition);
+}
+
+.method-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.method-card h4 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 0.6rem;
+}
+
+.method-card p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+/* --- Tab Buttons --- */
+.tab-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.tab-btn {
+  padding: 0.45rem 1.1rem;
+  border: 1.5px solid var(--border-light);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.tab-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+/* --- Video Comparison Grid --- */
+.video-compare-container {
+  display: none;
+}
+
+.video-compare-container.active {
+  display: block;
+}
+
+.video-compare-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.video-compare-grid.cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.video-compare-grid.cols-6 {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.video-compare-grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.video-cell {
+  text-align: center;
+}
+
+.video-cell video {
+  width: 100%;
+  border-radius: 6px;
+  box-shadow: var(--shadow-sm);
+  background: #000;
+}
+
+.video-cell .video-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+  margin-bottom: 0.15rem;
+}
+
+.video-cell .video-label.ours-label {
+  color: var(--primary);
+}
+
+.scene-caption {
+  text-align: center;
+  font-style: italic;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  margin-top: 1rem;
+  padding: 0.6rem 1rem;
+  background: var(--bg-section-alt);
+  border-radius: 6px;
+  border-left: 3px solid var(--primary);
+}
+
+/* --- Tables --- */
+.results-table-wrapper {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  background: #fff;
+}
+
+.results-table thead th {
+  background: var(--bg-dark);
+  color: #fff;
+  padding: 0.7rem 0.8rem;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.results-table thead th:first-child {
+  text-align: left;
+  border-top-left-radius: var(--radius);
+}
+
+.results-table thead th:last-child {
+  border-top-right-radius: var(--radius);
+}
+
+.results-table tbody td {
+  padding: 0.6rem 0.8rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+
+.results-table tbody td:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.results-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.results-table tbody tr.ours-row {
+  background: var(--ours-highlight);
+  font-weight: 600;
+}
+
+.results-table tbody tr.ours-row td:first-child {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.results-table .best-val {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.table-note {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+/* --- BibTeX --- */
+.bibtex-block {
+  position: relative;
+  background: #f4f6f9;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.5rem;
+  max-width: 720px;
+  margin: 1.5rem auto 0;
+  overflow-x: auto;
+}
+
+.bibtex-block pre {
+  margin: 0;
+  font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--text-primary);
+  white-space: pre;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.copy-btn:hover {
+  background: var(--primary-dark);
+}
+
+.copy-btn.copied {
+  background: #27ae60;
+}
+
+/* --- Footer --- */
+.site-footer {
+  background: var(--bg-dark);
+  color: #8899a6;
+  text-align: center;
+  padding: 2.5rem 1.5rem;
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+.site-footer a {
+  color: #a8c0ff;
+  text-decoration: none;
+}
+.site-footer a:hover {
+  text-decoration: underline;
+}
+
+/* --- Responsive --- */
+@media screen and (max-width: 1024px) {
+  .video-compare-grid.cols-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .video-compare-grid.cols-6 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .method-columns {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .hero-section .paper-title {
+    font-size: 1.6rem;
+  }
+  .content-section {
+    padding: 2.5rem 1rem;
+  }
+  .video-compare-grid.cols-4,
+  .video-compare-grid.cols-6,
+  .video-compare-grid.cols-3 {
+    grid-template-columns: 1fr;
+  }
+  .hero-links {
+    flex-direction: column;
+    align-items: center;
+  }
+  .results-table {
+    font-size: 0.78rem;
+  }
+  .tab-btn {
+    font-size: 0.78rem;
+    padding: 0.35rem 0.8rem;
+  }
+}
+
+/* --- Sync play button --- */
+.sync-play-hint {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  opacity: 0.8;
+}
+
+/* --- Video loading state --- */
+.video-cell video {
+  min-height: 120px;
+  object-fit: contain;
+}

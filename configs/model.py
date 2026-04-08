@@ -109,3 +109,32 @@ class traj_unet_xxs(_traj_unet):
     dim_mults: Tuple[float] = (0.0625, 0.125, 0.25, 0.5)
     unet_adagn: bool = False
     unet_zero: bool = False
+
+
+# ============================================
+# Transition Model Configurations
+# ============================================
+
+@dataclass
+class _transition(ModelOptions, DataOptions, DiffusionOptions, TrainingOptions,
+                  EvaluationOptions):
+    """Base transition model config."""
+    num_frames: int = 60  # Transition length
+    predict_xstart: bool = True
+    grad_clip: float = 1.
+    avg_model_beta: float = 0.9999
+    save_interval: int = 50_000
+    num_steps: int = 200_000
+    batch_size: int = 4  # Small dataset, need small batches
+    lr: float = 1e-4
+    weight_decay: float = 0.01
+
+
+@dataclass
+class transition_transformer(_transition):
+    """Transition model using transformer architecture."""
+    arch: str = 'trans_enc'
+    latent_dim: int = 512
+    ff_size: int = 1024
+    layers: int = 8
+    use_fp16: bool = True

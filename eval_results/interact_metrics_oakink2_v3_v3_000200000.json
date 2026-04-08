@@ -1,0 +1,49 @@
+{
+  "model_path": "save/v3_entity_200k_fixed/model000200000.pt",
+  "model_version": "v3",
+  "data_root": "dataset/OAKINK2_V3",
+  "step": "000200000",
+  "num_samples": 193,
+  "num_repeats": 2,
+  "smooth_window": 0,
+  "metrics": {
+    "fid_mean": 0.06751979820403609,
+    "fid_std": 0.0019351214915310777,
+    "r_prec_1_mean": 0.0025906735751295338,
+    "r_prec_1_std": 0.0025906735751295338,
+    "r_prec_2_mean": 0.010362694300518135,
+    "r_prec_2_std": 0.0,
+    "r_prec_3_mean": 0.010362694300518135,
+    "r_prec_3_std": 0.0,
+    "matching_pred_mean": 12.25971873683633,
+    "matching_pred_std": 0.002765769167885068,
+    "matching_real_mean": 12.27399631856019,
+    "matching_real_std": 0.00019848284943790873,
+    "diversity_mean": 1.4744518399238586,
+    "diversity_std": 0.02790004014968872,
+    "diversity_real_mean": 1.475525140762329,
+    "diversity_real_std": 0.06163525581359863
+  },
+  "per_repeat": [
+    {
+      "fid": 0.06945491969556716,
+      "r_prec_1": 0.0,
+      "r_prec_2": 0.010362694300518135,
+      "r_prec_3": 0.010362694300518135,
+      "matching_pred": 12.262484506004215,
+      "matching_real": 12.273797835710752,
+      "diversity": 1.44655179977417,
+      "diversity_real": 1.4138898849487305
+    },
+    {
+      "fid": 0.06558467671250501,
+      "r_prec_1": 0.0051813471502590676,
+      "r_prec_2": 0.010362694300518135,
+      "r_prec_3": 0.010362694300518135,
+      "matching_pred": 12.256952967668445,
+      "matching_real": 12.274194801409628,
+      "diversity": 1.5023518800735474,
+      "diversity_real": 1.5371603965759277
+    }
+  ]
+}

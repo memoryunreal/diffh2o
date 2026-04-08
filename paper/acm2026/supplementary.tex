@@ -1,0 +1,638 @@
+% !TEX program = pdflatex
+% !TEX root = supplementary.tex
+%%
+%% Supplementary Material for CRR-Flow (ACM MM 2026)
+%%
+\documentclass[sigconf, screen, review, anonymous]{acmart}
+
+% Rights management information (placeholder)
+% \setcopyright{acmlicensed}
+% \copyrightyear{2026}
+% \acmYear{2026}
+% \acmDOI{XXXXXXX.XXXXXXX}
+% \acmConference[ACMMM '26]{ACM Multimedia 2026}{October 2026}{TBD}
+% \acmISBN{978-1-4503-XXXX-X/2026/10}
+
+%% Additional packages
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{listings}
+
+%% Listing style for prompts
+\definecolor{promptbg}{RGB}{245,245,245}
+\definecolor{promptframe}{RGB}{200,200,200}
+\definecolor{promptkw}{RGB}{0,80,160}
+\lstdefinestyle{prompt}{
+  backgroundcolor=\color{promptbg},
+  frame=single,
+  rulecolor=\color{promptframe},
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  xleftmargin=4pt,
+  xrightmargin=4pt,
+  aboveskip=6pt,
+  belowskip=6pt,
+}
+
+%% Custom commands (matching main paper)
+\DeclareMathOperator{\sigmoid}{sigmoid}
+\newcommand{\bx}{\mathbf{x}}
+\newcommand{\bc}{\mathbf{c}}
+\newcommand{\bz}{\mathbf{z}}
+
+\begin{document}
+
+\title{Supplementary Material\\ CRR-Flow: State-Aware Autoregressive Flow for Long-Horizon Human-Object Interaction Generation}
+
+\author{Anonymous Authors}
+\affiliation{%
+  \institution{Anonymous Institution}
+}
+
+\renewcommand{\shortauthors}{Anonymous Authors}
+
+% \begin{abstract}
+% This document provides supplementary material for the main paper, including the LLM state planner prompt (Section~A), cross-dataset evaluation on HIMO (Section~B), motion representation details (Section~C), training hyperparameters (Section~D), Schmitt trigger contact detection algorithm (Section~E), evaluation protocol details (Section~F), and additional qualitative results (Section~G).
+% \end{abstract}
+
+\maketitle
+
+\setcounter{section}{0}
+\renewcommand{\thesection}{\Alph{section}}
+
+
+%% ============================================================
+%% SECTION A: LLM State Planner Prompt
+%% ============================================================
+\section{LLM State Planner Prompt}
+\label{sec:llm_prompt}
+
+As described in the main paper (Section~3.1), at test time CRR-Flow uses a large language model to translate multi-step textual instructions into per-slot physical state timelines $\mathbf{S} \in \mathbb{Z}^{T_{\text{total}} \times 7}$. The LLM receives a system prompt defining the task, state vocabulary, slot schema, and output format, followed by the user's multi-step instruction. Below we reproduce the full system prompt.
+
+\subsection{System Prompt}
+
+\begin{lstlisting}[style=prompt]
+You are a state planner for human-object interaction motion
+generation. Your task is to decompose a multi-step manipulation
+instruction into a sequence of primitive segments, and for each
+segment assign a physical interaction state to each of the 7
+entity slots.
+
+=== STATE VOCABULARY ===
+
+Each slot receives one of the following discrete states:
+
+  0 - Static:      Idle, no active interaction.
+  1 - Reach:       Hand is approaching the target object.
+  2 - Grasped:     Hand is holding the object (contact
+                   established).
+  3 - Interacting: Hand is performing an action with the held
+                   object (e.g., tool use, pouring, pressing).
+  4 - Release:     Hand is withdrawing from the object after
+                   contact ends.
+  5 - Padding:     Slot is unused (no object assigned).
+
+=== SLOT SCHEMA (7 slots) ===
+
+  Slot 0: body        (ALWAYS state 0 - Static)
+  Slot 1: left_hand   (states 0-4)
+  Slot 2: right_hand  (states 0-4)
+  Slot 3: obj1        (states 0, 2, 3, or 5)
+  Slot 4: obj2        (states 0, 2, 3, or 5)
+  Slot 5: obj3        (states 0, 2, 3, or 5)
+  Slot 6: obj4        (states 0, 2, 3, or 5)
+
+=== RULES ===
+
+1. The body slot (slot 0) is ALWAYS Static (0). The body moves
+   freely but does not have contact phases.
+2. Unused object slots are ALWAYS Padding (5).
+3. Each primitive segment has a fixed length of L=180 generation
+   frames. You do NOT need to specify frame counts or durations.
+   You only assign WHICH state applies to WHICH slot for each
+   primitive.
+4. Object slots mirror the hand contact state:
+   - When a hand is Grasped (2) on an object, the object is
+     also Grasped (2).
+   - When a hand is Interacting (3) with an object, the object
+     is also Interacting (3).
+   - When no hand is in contact, the object is Static (0).
+   - Objects do NOT have Reach (1) or Release (4) states.
+5. A hand typically follows this phase sequence within a
+   primitive: Static -> Reach -> Grasped/Interacting -> Release
+   -> Static. Not all phases need to appear in every segment.
+6. If a hand is already grasping an object from the previous
+   segment, it should start in Grasped (2) or Interacting (3),
+   not Reach (1).
+7. For bimanual actions (both hands active), assign states to
+   both left_hand and right_hand.
+8. Objects are sorted alphabetically by name. Assign them to
+   obj1, obj2, obj3, obj4 in that order.
+9. If an action involves a tool acting on a target (e.g.,
+   scooping with a spoon from a plate), the hand holding the
+   tool is Interacting (3), the tool object is Interacting (3),
+   and the target object is also Interacting (3).
+
+=== OUTPUT FORMAT ===
+
+Return a JSON array where each element represents one primitive
+segment. Each segment has:
+  - "primitive_id": integer starting from 0
+  - "description": the sub-instruction for this primitive
+  - "slots": a dictionary mapping slot names to integer states
+
+Example output:
+[
+  {
+    "primitive_id": 0,
+    "description": "Pick up the spoon with right hand",
+    "slots": {
+      "body": 0,
+      "left_hand": 0,
+      "right_hand": 2,
+      "obj1": 5,
+      "obj2": 2,
+      "obj3": 5,
+      "obj4": 5
+    }
+  },
+  ...
+]
+\end{lstlisting}
+
+\subsection{Example Input and Output}
+
+\paragraph{Example input.}
+The user provides a multi-step instruction and the list of objects present in the scene:
+
+\begin{lstlisting}[style=prompt]
+Instruction: "Scoop cheese from the plate with the spoon,
+then open the microwave door, place the plate inside, and
+close the door."
+
+Objects in scene: cup, microwave_door, plate, spoon
+(sorted alphabetically -> obj1=cup, obj2=microwave_door,
+ obj3=plate, obj4=spoon)
+\end{lstlisting}
+
+\paragraph{Example output.}
+The LLM produces four primitive segments:
+
+\begin{lstlisting}[style=prompt]
+[
+  {
+    "primitive_id": 0,
+    "description": "Scoop cheese from the plate with the
+                    spoon (right hand holds spoon, scoops
+                    from plate)",
+    "slots": {
+      "body": 0,
+      "left_hand": 0,
+      "right_hand": 3,
+      "obj1": 5,
+      "obj2": 5,
+      "obj3": 3,
+      "obj4": 3
+    }
+  },
+  {
+    "primitive_id": 1,
+    "description": "Open the microwave door with the left
+                    hand (right hand releases spoon)",
+    "slots": {
+      "body": 0,
+      "left_hand": 2,
+      "right_hand": 4,
+      "obj1": 5,
+      "obj2": 2,
+      "obj3": 0,
+      "obj4": 0
+    }
+  },
+  {
+    "primitive_id": 2,
+    "description": "Place the plate inside the microwave
+                    with the right hand",
+    "slots": {
+      "body": 0,
+      "left_hand": 0,
+      "right_hand": 3,
+      "obj1": 5,
+      "obj2": 3,
+      "obj3": 3,
+      "obj4": 5
+    }
+  },
+  {
+    "primitive_id": 3,
+    "description": "Close the microwave door with the left
+                    hand",
+    "slots": {
+      "body": 0,
+      "left_hand": 2,
+      "right_hand": 0,
+      "obj1": 5,
+      "obj2": 2,
+      "obj3": 0,
+      "obj4": 5
+    }
+  }
+]
+\end{lstlisting}
+
+\paragraph{Interpretation.}
+In Primitive~0, the right hand is \textsc{Interacting}~(3) because it performs a tool-use action (scooping). Both the spoon (obj4) and the plate (obj3) are marked \textsc{Interacting}~(3) because the spoon acts on the plate. The cup (obj1) is \textsc{Padding}~(5) since it is not involved. In Primitive~1, the right hand transitions to \textsc{Release}~(4) to put down the spoon, while the left hand becomes \textsc{Grasped}~(2) on the microwave door. The system then slices each primitive's state vector into the corresponding $T$-frame block of the global state timeline $\mathbf{S}$ for autoregressive generation.
+
+
+%% ============================================================
+%% SECTION B: HIMO Cross-Dataset Evaluation
+%% ============================================================
+\section{HIMO Cross-Dataset Evaluation}
+\label{sec:himo_eval}
+
+To assess the generalizability of CRR-Flow's slot-centric architecture beyond OakInk2, we evaluate on the HIMO benchmark~\cite{himo2024}, which provides multi-object interaction data in both 2-object and 3-object settings. Table~\ref{tab:himo_2obj} and Table~\ref{tab:himo_3obj} report the results.
+
+\begin{table*}[t]
+  \caption{\textbf{Cross-dataset evaluation on HIMO (2-object setting, 489D).} All methods use the HIMO evaluator. Best in \textbf{bold}, second-best \underline{underlined}. $\downarrow$: lower is better; $\uparrow$: higher is better.}
+  \label{tab:himo_2obj}
+  \centering
+  \small
+  \begin{tabular}{@{}lccccccc@{}}
+    \toprule
+    Method & FID $\downarrow$ & R@1 $\uparrow$ & R@2 $\uparrow$ & R@3 $\uparrow$ & Matching $\downarrow$ & Diversity $\uparrow$ \\
+    \midrule
+    Ground Truth & 0.000 & 0.385 & 0.598 & 0.729 & 3.568 & \textbf{11.98} \\
+    \midrule
+    HOIDiff & \textbf{1.077} & \underline{0.320} & \underline{0.525} & \underline{0.652} & \underline{4.457} & 10.44 \\
+    HIMO & \underline{2.131} & \textbf{0.352} & \textbf{0.557} & \textbf{0.670} & \textbf{4.251} & 11.45 \\
+    PriorMDM & 3.160 & 0.266 & 0.463 & 0.570 & 4.908 & 10.39 \\
+    CRR-Flow (Ours) & 3.467 & 0.186 & 0.309 & 0.416 & 6.202 & \underline{11.37} \\
+    MDM & 4.525 & 0.273 & 0.461 & 0.553 & 5.035 & 10.55 \\
+    \bottomrule
+  \end{tabular}
+\end{table*}
+
+\begin{table*}[t]
+  \caption{\textbf{Cross-dataset evaluation on HIMO (3-object setting, 498D).} All methods use the HIMO evaluator. Best in \textbf{bold}, second-best \underline{underlined}. $\downarrow$: lower is better; $\uparrow$: higher is better.}
+  \label{tab:himo_3obj}
+  \centering
+  \small
+  \begin{tabular}{@{}lccccccc@{}}
+    \toprule
+    Method & FID $\downarrow$ & R@1 $\uparrow$ & R@2 $\uparrow$ & R@3 $\uparrow$ & Matching $\downarrow$ & Diversity $\uparrow$ \\
+    \midrule
+    Ground Truth & 0.000 & 0.306 & 0.469 & 0.656 & 3.792 & \textbf{9.88} \\
+    \midrule
+    HIMO & \textbf{2.571} & \textbf{0.275} & \textbf{0.438} & \textbf{0.569} & \textbf{4.348} & 8.78 \\
+    HOIDiff & \underline{2.906} & \underline{0.269} & \underline{0.412} & \underline{0.550} & \underline{4.509} & 8.81 \\
+    CRR-Flow (Ours) & 3.149 & 0.144 & 0.250 & 0.325 & 6.425 & \underline{9.12} \\
+    MDM & 3.904 & 0.212 & 0.344 & 0.481 & 4.789 & 9.93 \\
+    PriorMDM & 3.929 & 0.287 & 0.438 & 0.506 & 4.934 & 9.33 \\
+    \bottomrule
+  \end{tabular}
+\end{table*}
+
+\paragraph{Context.}
+CRR-Flow was designed for OakInk2's 534D marker-based representation and is transferred to HIMO's joint-rotation format (489D for 2-object, 498D for 3-object) without any architectural modifications. The slot tokenization dimensions are reconfigured (body: 201D, left hand: 135D, right hand: 135D, object: 9D per slot) to match HIMO's feature layout, but the core DiT architecture, state conditioning mechanism, and training procedure remain identical.
+
+\paragraph{Analysis.}
+CRR-Flow achieves \textbf{Diversity closest to the ground truth} in both settings: 11.37 vs.\ GT 11.98 in the 2-object setting and 9.12 vs.\ GT 9.88 in the 3-object setting. This indicates that the slot-centric architecture captures the natural variation in manipulation motions, even when transferred to a different motion representation.
+
+In terms of FID, CRR-Flow ranks 4th in the 2-object setting (3.467) and 3rd in the 3-object setting (3.149), outperforming MDM in both cases (4.525 and 3.904, respectively). The competitive 3-object result demonstrates that the architecture generalizes effectively to scenarios with more objects.
+
+The R-Precision gap (e.g., Top-1: 0.186 vs.\ HIMO's 0.352 in the 2-object setting) reflects a representation mismatch: CRR-Flow's slot tokenization was optimized for marker positions (OakInk2), where spatial locality provides strong inductive bias for the per-slot projections. HIMO's joint-rotation format distributes semantically related features differently across the input vector, reducing the effectiveness of the learned input projections. We note that methods trained natively on HIMO's representation (HIMO, HOIDiff) achieve substantially better R-Precision, as expected.
+
+We present these results as a \emph{generalizability validation}: CRR-Flow's slot-centric architecture and state conditioning framework transfer to a different dataset and representation without code changes, maintaining reasonable generation quality and strong diversity, rather than claiming state-of-the-art performance on HIMO.
+
+
+%% ============================================================
+%% SECTION C: Motion Representation Details
+%% ============================================================
+\section{Motion Representation Details}
+\label{sec:representation}
+
+\subsection{OakInk2 Representation (534D)}
+
+The OakInk2 motion representation consists of 267D positional features and 267D velocity features (first-order temporal differences), totaling 534D per frame. Table~\ref{tab:oakink2_layout} details the positional feature layout.
+
+\begin{table}[t]
+  \caption{\textbf{OakInk2 positional feature layout (267D).} Velocity features follow the same layout, doubling the total to 534D. BPS geometry (1024D per object) is supplied as clean context and is not included in the 534D count.}
+  \label{tab:oakink2_layout}
+  \centering
+  \small
+  \begin{tabular}{@{}llcc@{}}
+    \toprule
+    Component & Description & Dim & Indices \\
+    \midrule
+    Body markers & 50 SSM67 markers $\times$ 3D & 150 & 0--149 \\
+    Left hand & 14 markers $\times$ 3D & 42 & 150--191 \\
+    Right hand & 13 markers $\times$ 3D & 39 & 192--230 \\
+    Object 1 pose & 3D transl.\ + 6D rot. & 9 & 231--239 \\
+    Object 2 pose & 3D transl.\ + 6D rot. & 9 & 240--248 \\
+    Object 3 pose & 3D transl.\ + 6D rot. & 9 & 249--257 \\
+    Object 4 pose & 3D transl.\ + 6D rot. & 9 & 258--266 \\
+    \midrule
+    \multicolumn{2}{l}{\textbf{Position subtotal}} & \textbf{267} & 0--266 \\
+    \multicolumn{2}{l}{Velocity (same layout)} & 267 & 267--533 \\
+    \midrule
+    \multicolumn{2}{l}{\textbf{Grand total (dynamic)}} & \textbf{534} & 0--533 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Marker protocol.}
+Body markers follow the SSM67 protocol (67 standardized surface markers on the SMPL-X mesh), from which we select 50 markers covering the torso, limbs, and head. We augment these with 10 fingertip markers (5 per hand), yielding 77 markers in total. The left hand group (14 markers) and right hand group (13 markers) capture fine-grained finger articulation. The asymmetry arises from the marker placement on the SMPL-X mesh: the left hand includes one additional palm marker to improve coverage of the thenar eminence.
+
+\paragraph{Object representation.}
+Each object's dynamic state is a 9D vector: 3D translation in world coordinates plus 6D continuous rotation following the representation of Zhou~et~al. Up to 4 object slots are allocated; unused slots are zero-padded in the dynamic features and receive \textsc{Padding} state labels.
+
+\paragraph{BPS geometry.}
+Object shape is encoded using Basis Point Sets (BPS): 1024 basis points distributed on a Fibonacci sphere, each storing the scalar signed distance to the nearest point on the object surface mesh. This yields a static 1024D shape embedding per object that is concatenated to the object's dynamic features before the slot input projection ($18\text{D}_{\text{dyn}} + 1024\text{D}_{\text{BPS}} = 1042\text{D} \rightarrow 512\text{D}$). BPS embeddings are computed once during preprocessing and remain constant across all frames, which is why they are excluded from the flow matching noise schedule.
+
+
+\subsection{HIMO Adaptation (489D / 498D)}
+
+For the HIMO benchmark evaluation, we adapt CRR-Flow's slot tokenization to HIMO's joint-rotation representation. Table~\ref{tab:himo_layout} shows the feature layout.
+
+\begin{table}[t]
+  \caption{\textbf{HIMO feature layout.} The 2-object setting uses 489D; the 3-object setting adds a third 9D object slot for 498D.}
+  \label{tab:himo_layout}
+  \centering
+  \small
+  \begin{tabular}{@{}llc@{}}
+    \toprule
+    Component & Description & Dim \\
+    \midrule
+    Joint positions & 52 joints $\times$ 3D & 156 \\
+    Global orient & 6D continuous rotation & 6 \\
+    Body pose & 21 joints $\times$ 6D rotation & 126 \\
+    Left hand pose & 15 joints $\times$ 6D rotation & 90 \\
+    Right hand pose & 15 joints $\times$ 6D rotation & 90 \\
+    Translation & 3D global translation & 3 \\
+    Object 1 pose & 3D transl.\ + 6D rot. & 9 \\
+    Object 2 pose & 3D transl.\ + 6D rot. & 9 \\
+    \midrule
+    \multicolumn{2}{l}{\textbf{2-object total}} & \textbf{489} \\
+    Object 3 pose & 3D transl.\ + 6D rot. & 9 \\
+    \midrule
+    \multicolumn{2}{l}{\textbf{3-object total}} & \textbf{498} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Slot dimension reconfiguration.}
+The slot tokenizer is reconfigured as follows:
+\begin{itemize}
+  \item \textbf{Body slot} (201D): joint positions (156D) + global orient (6D) + body pose first 6 joints (36D) + translation (3D).
+  \item \textbf{Left hand slot} (135D): left hand pose (90D) + body pose joints 7--13 (42D) + 3D wrist offset.
+  \item \textbf{Right hand slot} (135D): right hand pose (90D) + body pose joints 14--20 (42D) + 3D wrist offset.
+  \item \textbf{Object slots} (9D each): 3D translation + 6D rotation, identical to OakInk2.
+\end{itemize}
+No BPS geometry is used for HIMO, as the benchmark does not provide object meshes for BPS computation. The object input projection reduces to $9\text{D} \rightarrow 512\text{D}$.
+
+
+%% ============================================================
+%% SECTION D: Training Hyperparameters
+%% ============================================================
+\section{Training Hyperparameters}
+\label{sec:hyperparams}
+
+Table~\ref{tab:hyperparams} summarizes the training configuration across all datasets.
+
+\begin{table*}[t]
+  \caption{\textbf{Training hyperparameters across datasets.} All datasets use the same DiT architecture with per-dataset preprocessing and batch size adjustments.}
+  \label{tab:hyperparams}
+  \centering
+  \small
+  \begin{tabular}{@{}lcccc@{}}
+    \toprule
+    Parameter & OakInk2 & GRAB & HIMO-2obj & HIMO-3obj \\
+    \midrule
+    \multicolumn{5}{l}{\textit{Architecture}} \\
+    \quad Backbone & DiT & DiT & DiT & DiT \\
+    \quad Latent dimension $D$ & 512 & 512 & 512 & 512 \\
+    \quad Transformer layers & 8 & 8 & 8 & 8 \\
+    \quad Attention heads & 8 & 8 & 8 & 8 \\
+    \quad FFN dimension & 2048 & 2048 & 2048 & 2048 \\
+    \quad Total trainable params & 41.2M & 41.2M & 41.2M & 41.2M \\
+    \quad Text encoder & CLIP ViT-B/32 & CLIP ViT-B/32 & CLIP ViT-B/32 & CLIP ViT-B/32 \\
+    \quad Text encoder params (frozen) & 151.3M & 151.3M & 151.3M & 151.3M \\
+    \midrule
+    \multicolumn{5}{l}{\textit{Data}} \\
+    \quad Feature dimension & 534D & 534D & 489D & 498D \\
+    \quad Frames per window $T$ & 200 & 300 & 300 & 300 \\
+    \quad History frames $K$ & 20 & 20 & 10 & 10 \\
+    \quad Target frames $L$ & 180 & 280 & 290 & 290 \\
+    \quad Frame rate & 10 FPS & 30 FPS & 30 FPS & 30 FPS \\
+    \quad Object slots & 4 & 1 (+ 3 padded) & 2 (+ 2 padded) & 3 (+ 1 padded) \\
+    \quad Train / test sequences & 770 / 193 & 1065 / 270 & --- & --- \\
+    \midrule
+    \multicolumn{5}{l}{\textit{Optimization}} \\
+    \quad Optimizer & AdamW & AdamW & AdamW & AdamW \\
+    \quad Learning rate & $1 \times 10^{-4}$ & $1 \times 10^{-4}$ & $1 \times 10^{-4}$ & $1 \times 10^{-4}$ \\
+    \quad Weight decay & 0.01 & 0.01 & 0.01 & 0.01 \\
+    \quad Gradient clipping & 1.0 & 1.0 & 1.0 & 1.0 \\
+    \quad Batch size & 256 ($64 \times 4$ GPU) & 32 & 32 & 32 \\
+    \quad Training steps & 200K & 200K & 200K & 200K \\
+    \midrule
+    \multicolumn{5}{l}{\textit{Flow Matching}} \\
+    \quad Method & CFM ($\sigma{=}0$) & CFM ($\sigma{=}0$) & CFM ($\sigma{=}0$) & CFM ($\sigma{=}0$) \\
+    \quad Cold-start ratio & 20\% & 20\% & 20\% & 20\% \\
+    \quad CFG text dropout & 10\% & 10\% & 10\% & 10\% \\
+    \midrule
+    \multicolumn{5}{l}{\textit{Inference}} \\
+    \quad ODE solver & Euler & Euler & Euler & Euler \\
+    \quad Integration steps & 10 & 10 & 10 & 10 \\
+    \midrule
+    \multicolumn{5}{l}{\textit{Hardware}} \\
+    \quad GPU & RTX A6000 & RTX A6000 & RTX A6000 & RTX A6000 \\
+    \quad GPU memory & 48 GB & 48 GB & 48 GB & 48 GB \\
+    \bottomrule
+  \end{tabular}
+\end{table*}
+
+\paragraph{Weight initialization.}
+Input projections (per-slot $W_{\text{body}}$, $W_{\text{lh}}$, $W_{\text{rh}}$, $W_{\text{obj}}$) use Xavier uniform initialization. Output projections and the final AdaLN-Zero layer use Xavier initialization with gain $0.01$ rather than zero initialization. This small but non-zero gain prevents dead gradients at the start of training while preserving the residual-stream property of AdaLN-Zero gating: the initial output is near-zero, so early training iterations approximate the identity function through the residual connection.
+
+\paragraph{Cold-start training.}
+To bridge the distribution gap between training (ground-truth history) and inference (rest-pose initialization for the first block), 20\% of training windows replace $\mathbf{X}_{\text{hist}}$ with a repeated rest pose and zero velocity. This mixed sampling strategy exposes the model to both in-motion relay and static-start conditions, preventing the model from relying exclusively on informative history conditioning.
+
+\paragraph{CLIP embedding caching.}
+CLIP ViT-B/32 text embeddings (512D) are pre-computed for all training captions and stored as numpy arrays. During training, the CLIP model is excluded from the computation graph entirely, reducing GPU memory by approximately 600~MB and enabling straightforward DDP training without synchronizing the frozen encoder.
+
+
+%% ============================================================
+%% SECTION E: Schmitt Trigger Contact Detection
+%% ============================================================
+\section{Schmitt Trigger Contact Detection}
+\label{sec:schmitt}
+
+Algorithm~\ref{alg:schmitt} provides the complete pseudocode for the Schmitt trigger contact detection procedure used to extract ground-truth state labels from motion capture data.
+
+\begin{algorithm}[t]
+\caption{Schmitt Trigger Contact Detection with State Assignment}
+\label{alg:schmitt}
+\begin{algorithmic}[1]
+\REQUIRE Fingertip positions $\mathbf{F} \in \mathbb{R}^{T \times N_f \times 3}$, object mesh vertices $\mathbf{V}$, thresholds $\delta_{\text{on}} = 1.5$~cm, $\delta_{\text{off}} = 3.0$~cm, smoothing window $w = 5$
+\ENSURE Per-frame contact labels $\mathbf{c} \in \{\text{True}, \text{False}\}^T$, hand state labels $\mathbf{s}_{\text{hand}} \in \{0,1,2,3,4\}^T$, object state labels $\mathbf{s}_{\text{obj}} \in \{0,2,3,5\}^T$
+
+\STATE \textbf{// Step 1: Compute per-frame minimum distances}
+\FOR{$t = 0$ \TO $T-1$}
+    \STATE $d_t \leftarrow \min_{i \in [N_f]} \min_{\mathbf{v} \in \mathbf{V}} \| \mathbf{F}[t, i] - \mathbf{v} \|_2$
+\ENDFOR
+
+\STATE \textbf{// Step 2: Schmitt trigger with hysteresis}
+\STATE $c_0 \leftarrow \text{False}$
+\FOR{$t = 1$ \TO $T-1$}
+    \IF{$d_t < \delta_{\text{on}}$}
+        \STATE $c_t \leftarrow \text{True}$ \hfill \COMMENT{Trigger: enter contact}
+    \ELSIF{$d_t > \delta_{\text{off}}$}
+        \STATE $c_t \leftarrow \text{False}$ \hfill \COMMENT{Release: exit contact}
+    \ELSE
+        \STATE $c_t \leftarrow c_{t-1}$ \hfill \COMMENT{Deadzone: maintain state}
+    \ENDIF
+\ENDFOR
+
+\STATE \textbf{// Step 3: Majority-vote smoothing}
+\FOR{$t = 0$ \TO $T-1$}
+    \STATE $c_t \leftarrow \text{majority}(c_{t-\lfloor w/2 \rfloor}, \ldots, c_{t+\lfloor w/2 \rfloor})$
+    \hfill \COMMENT{Clamp at boundaries}
+\ENDFOR
+
+\STATE \textbf{// Step 4: Assign hand state labels}
+\FOR{$t = 0$ \TO $T-1$}
+    \IF{$c_t = \text{True}$}
+        \IF{action is tool-use or triadic}
+            \STATE $s_{\text{hand}}[t] \leftarrow 3$ \hfill \COMMENT{Interacting}
+        \ELSE
+            \STATE $s_{\text{hand}}[t] \leftarrow 2$ \hfill \COMMENT{Grasped}
+        \ENDIF
+    \ELSE
+        \STATE $s_{\text{hand}}[t] \leftarrow 0$ \hfill \COMMENT{Static (temporary)}
+    \ENDIF
+\ENDFOR
+
+\STATE \textbf{// Step 5: Infer Reach and Release phases}
+\FOR{each contiguous contact region $[t_{\text{start}}, t_{\text{end}}]$}
+    \STATE Mark frames $[\max(0, t_{\text{start}} - r), t_{\text{start}})$ as Reach~(1)
+    \STATE Mark frames $(t_{\text{end}}, \min(T, t_{\text{end}} + r)]$ as Release~(4)
+\ENDFOR
+
+\STATE \textbf{// Step 6: Assign object state labels (mirror hand)}
+\FOR{$t = 0$ \TO $T-1$}
+    \IF{$s_{\text{hand}}[t] \in \{2, 3\}$}
+        \STATE $s_{\text{obj}}[t] \leftarrow s_{\text{hand}}[t]$ \hfill \COMMENT{Object mirrors hand contact}
+    \ELSE
+        \STATE $s_{\text{obj}}[t] \leftarrow 0$ \hfill \COMMENT{Static}
+    \ENDIF
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Hysteresis deadzone.}
+The deadzone between $\delta_{\text{on}} = 1.5$~cm and $\delta_{\text{off}} = 3.0$~cm prevents rapid toggling (``contact chatter'') when the hand hovers near the object surface. Without hysteresis, noise in fingertip positions would cause the contact label to oscillate between True and False on consecutive frames, producing physically implausible state transitions. The asymmetric thresholds reflect the observation that establishing contact requires closer proximity than maintaining it: once contact is triggered, the hand can move slightly further from the surface (up to 3.0~cm) before the contact is considered broken.
+
+\paragraph{Majority-vote smoothing.}
+After the Schmitt trigger, a majority-vote filter with window size $w = 5$ removes isolated single-frame state flips. For each frame $t$, the label is replaced by the majority vote of the 5-frame neighborhood $[t{-}2, t{+}2]$ (clamped at sequence boundaries). This eliminates brief 1--2 frame contact artifacts caused by measurement noise.
+
+\paragraph{Fingertip markers.}
+The $N_f = 10$ fingertip markers correspond to SSM67 marker indices 67--76 (5 per hand). These are the distal phalanx tips of each finger and represent the primary contact surfaces during grasping. Distances are computed from these markers to the nearest point on the object mesh surface.
+
+\paragraph{Triadic vs.\ dyadic actions.}
+An action is classified as \emph{triadic} if the primitive's annotation specifies objects for both hands (\texttt{obj\_lh} and \texttt{obj\_rh} are both non-empty), indicating bimanual manipulation such as scooping with a spoon while holding a plate. In triadic actions, both hands receive contact-derived state labels. \emph{Dyadic} actions involve a single hand interacting with one object; the other hand remains \textsc{Static}.
+
+\paragraph{Reach and Release inference.}
+The Reach and Release phases are inferred by expanding each contiguous contact region by $r$ frames in both temporal directions. The expansion radius $r$ is set proportional to the frame rate: $r = 15$ frames at 10~FPS (1.5 seconds) and $r = 45$ frames at 30~FPS. These phases capture the approach and withdrawal trajectories that bracket the contact period.
+
+
+%% ============================================================
+%% SECTION F: Evaluation Protocol Details
+%% ============================================================
+\section{Evaluation Protocol Details}
+\label{sec:eval_protocol}
+
+\subsection{Contrastive Motion--Text Evaluator}
+
+Following the InterAct benchmark protocol, we train a contrastive motion--text evaluator on OakInk2. The evaluator consists of:
+
+\begin{itemize}
+  \item \textbf{Motion encoder}: A 4-layer transformer with 256D hidden dimension that encodes a variable-length motion sequence into a fixed 256D embedding. The input is the 615D concatenation of 231D marker positions and 384D BPS-encoded object features (4 objects $\times$ 96D compressed BPS).
+  \item \textbf{Text encoder}: A 4-layer transformer with 256D hidden dimension that encodes a tokenized text caption into a fixed 256D embedding.
+  \item \textbf{Training objective}: InfoNCE contrastive loss between paired motion and text embeddings within each mini-batch, following the CLIP-style symmetric cross-entropy formulation.
+\end{itemize}
+
+The evaluator is trained for 100 epochs on OakInk2 training data and frozen before computing all generation metrics. This ensures that all methods are evaluated under the same embedding space.
+
+\subsection{Metric Definitions}
+
+\paragraph{R-Precision (Top-$k$, $k \in \{1, 2, 3\}$).}
+For each test motion, the evaluator computes embeddings for the motion and 32 text candidates (1 ground-truth positive + 31 randomly sampled negatives from the test set). Candidates are ranked by cosine similarity to the motion embedding. R-Precision Top-$k$ is the fraction of test samples for which the ground-truth text appears among the top-$k$ retrieved candidates.
+
+\paragraph{Fr\'{e}chet Inception Distance (FID).}
+FID measures the distributional distance between generated and real motion in the evaluator's embedding space. Motion embeddings are computed for all generated samples and all real test samples, then the Fr\'{e}chet distance between the two Gaussian-fitted distributions is computed:
+\begin{equation}
+  \text{FID} = \|\boldsymbol{\mu}_r - \boldsymbol{\mu}_g\|^2 + \text{Tr}\left(\boldsymbol{\Sigma}_r + \boldsymbol{\Sigma}_g - 2(\boldsymbol{\Sigma}_r \boldsymbol{\Sigma}_g)^{1/2}\right),
+\end{equation}
+where $(\boldsymbol{\mu}_r, \boldsymbol{\Sigma}_r)$ and $(\boldsymbol{\mu}_g, \boldsymbol{\Sigma}_g)$ are the mean and covariance of real and generated distributions, respectively.
+
+\paragraph{Matching Score.}
+The L2 distance between the motion embedding and the paired text embedding, averaged over all test samples. Lower values indicate better text-motion alignment.
+
+\paragraph{Diversity.}
+Average pairwise L2 distance in the motion embedding space across 300 randomly sampled pairs from the generated set:
+\begin{equation}
+  \text{Diversity} = \frac{1}{300} \sum_{i=1}^{300} \| \mathbf{e}_{a_i} - \mathbf{e}_{b_i} \|_2,
+\end{equation}
+where $(a_i, b_i)$ are randomly paired generated motion embeddings.
+
+\paragraph{MultiModality.}
+For each text prompt, 10 motion samples are generated. The standard deviation of their motion embeddings measures how much variation the model produces from the same input:
+\begin{equation}
+  \text{MultiMod} = \frac{1}{|P|} \sum_{p \in P} \text{std}\left(\{\mathbf{e}_j\}_{j=1}^{10} \mid \text{text} = p\right).
+\end{equation}
+
+\paragraph{Marker MSE.}
+Direct mean squared error of 77 marker positions (231D) between generated and ground-truth motion, averaged over all frames and all test sequences. This metric is evaluator-independent and directly measures reconstruction accuracy:
+\begin{equation}
+  \text{M-MSE} = \frac{1}{T \cdot 231} \sum_{t=1}^{T} \| \hat{\mathbf{x}}_t^{\text{markers}} - \mathbf{x}_t^{\text{markers}} \|^2.
+\end{equation}
+
+\paragraph{Contact F1.}
+Evaluated on GRAB, which provides ground-truth per-vertex contact labels on all 10,475 SMPL-X mesh vertices. For each frame, a vertex is classified as ``in contact'' if its distance to the object surface is below 5~cm. Precision is the fraction of generated contact vertices that match ground-truth contact vertices; Recall is the fraction of ground-truth contact vertices that are correctly produced. F1 is the harmonic mean, averaged over all frames and both hands.
+
+\subsection{HIMO Evaluator}
+
+For the HIMO benchmark (Section~B), a separate contrastive evaluator is trained on HIMO's training data following the same protocol, ensuring fair comparison within the HIMO benchmark. The HIMO evaluator uses HIMO's joint-rotation representation as input to the motion encoder, so all methods are evaluated under the same embedding space specific to HIMO's feature format.
+
+
+%% ============================================================
+%% SECTION G: Additional Qualitative Results
+%% ============================================================
+\section{Additional Qualitative Results}
+\label{sec:qualitative}
+
+Additional qualitative comparisons are available on the anonymous project page.\footnote{\url{https://anonymous-project-page.github.io/crrflow}} The supplementary material includes:
+
+\begin{itemize}
+  \item \textbf{10 OakInk2 single-primitive comparisons}: Side-by-side renderings of ground truth, InterAct HOIDiff, PriorMDM DoubleTake, and CRR-Flow on diverse manipulation tasks including grasping, tool use, bimanual coordination, and object placement. Each comparison shows the full temporal evolution of body pose, hand articulation, and object trajectories.
+
+  \item \textbf{5 HIMO multi-object comparisons}: Side-by-side renderings comparing ground truth, HIMO, HOIDiff, MDM, PriorMDM, and CRR-Flow in both 2-object and 3-object settings. These demonstrate CRR-Flow's ability to generate plausible multi-object interactions despite the representation transfer from OakInk2.
+
+  \item \textbf{4 long-horizon generation demonstrations}: Extended sequences spanning 3--4 primitive segments (560--740 frames, 56--74 seconds at 10~FPS), showcasing the block-wise autoregressive relay. Each demonstration includes the per-slot state timeline visualization alongside the rendered motion, illustrating how state transitions at segment boundaries correspond to smooth kinematic changes in the generated motion.
+
+  \item \textbf{Failure case analysis}: Representative failure modes including (1)~contact timing misalignment in complex bimanual tasks, (2)~object drift during extended grasping phases, and (3)~imprecise finger placement when transferring between objects of different sizes.
+\end{itemize}
+
+All visualizations render SMPL-X body meshes fitted from the generated 77-marker positions via LBFGS inverse fitting, with object meshes positioned using the generated 6DoF object poses. Temporal smoothing (Savitzky-Golay filter, window~$= 11$, polyorder~$= 3$) is applied to marker positions before SMPL-X fitting to reduce high-frequency jitter.
+
+
+\end{document}

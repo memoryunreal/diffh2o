@@ -2668,3 +2668,6 @@ M001336,s5_spheremedium_pass_1_m
 M001337,s5_cylindermedium_inspect_1_m
 001338,s5_piggybank_pass_1
 M001338,s5_piggybank_pass_1_m
+OAKINK000000,s1_toothpaste_test_1
+MOAKINK000000,s1_toothpaste_test_1_m
+OAKINK000001,s1_toothpaste_test_2

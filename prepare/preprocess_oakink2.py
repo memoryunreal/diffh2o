@@ -24,6 +24,8 @@ import sys
 import json
 import pickle
 import argparse
+import multiprocessing
+from functools import partial
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
@@ -41,6 +43,9 @@ from utils.rotation_conversions import (
     matrix_to_rotation_6d,
     quaternion_to_axis_angle,
 )
+
+# Output directory for processed annotation pickles (for visualization)
+ANNO_PROCESSED_DIR = "/hhd4/lizhe/dataset/OakInk2/data/anno_processed"
 
 
 @dataclass
@@ -451,7 +456,7 @@ def process_segment(
     config: OakInk2Config,
     mano_converter: MANOPCAConverter,
     object_processor: ObjectProcessor,
-) -> Optional[np.ndarray]:
+) -> Optional[Tuple[np.ndarray, Dict[str, Any]]]:
     """Process a single segment into feature representation.
 
     Args:
@@ -462,7 +467,15 @@ def process_segment(
         object_processor: Object mesh processor.
 
     Returns:
-        Feature array of shape (T, 398) or None if processing fails.
+        Tuple of (features, raw_data) where:
+        - features: Feature array of shape (T, 398)
+        - raw_data: Dictionary containing raw annotation data for visualization:
+            - 'frame_ids': List of frame IDs
+            - 'raw_smplx': Dict[frame_id, smplx_data]
+            - 'raw_mano': Dict[frame_id, mano_data]
+            - 'obj_transf': Dict[obj_id, Dict[frame_id, transform]]
+            - 'obj_list': List of object IDs
+        Returns None if processing fails.
     """
     start_frame = segment['start_frame']
     end_frame = segment['end_frame']
@@ -482,15 +495,19 @@ def process_segment(
     if end_idx <= start_idx:
         return None
 
-    # OakInk2 is already 30fps - no downsampling needed
-    frame_indices = list(range(start_idx, end_idx + 1))
+    # OakInk2 is already 30fps
+    all_indices = list(range(start_idx, end_idx + 1))
 
-    if len(frame_indices) < config.min_motion_len:
+    if len(all_indices) < config.min_motion_len:
         return None
 
-    # Limit to max length (0 = no limit)
-    if config.max_motion_len > 0 and len(frame_indices) > config.max_motion_len:
-        frame_indices = frame_indices[:config.max_motion_len]
+    # Uniform subsample to preserve full motion arc instead of truncating
+    target_len = config.max_motion_len if config.max_motion_len > 0 else 0
+    if target_len > 0 and len(all_indices) > target_len:
+        step = len(all_indices) / target_len
+        frame_indices = [all_indices[int(i * step)] for i in range(target_len)]
+    else:
+        frame_indices = all_indices
 
     T = len(frame_indices)
     features = np.zeros((T, TOTAL_FEATURE_DIM), dtype=np.float32)
@@ -499,6 +516,13 @@ def process_segment(
     raw_smplx = anno['raw_smplx']
     raw_mano = anno['raw_mano']
     obj_transf = anno['obj_transf']
+
+    # Collect raw data for saving to pickle
+    collected_frame_ids: List[int] = []
+    collected_raw_smplx: Dict[int, Dict[str, torch.Tensor]] = {}
+    collected_raw_mano: Dict[int, Dict[str, torch.Tensor]] = {}
+    collected_obj_transf: Dict[str, Dict[int, np.ndarray]] = {}
+    obj_list = segment['objects'][:config.max_objects]
 
     for t, frame_id in enumerate(frame_indices):
         actual_frame = mocap_frames[frame_id] if frame_id < len(mocap_frames) else mocap_frames[-1]
@@ -511,6 +535,28 @@ def process_segment(
 
         smplx_frame = raw_smplx[actual_frame]
         mano_frame = raw_mano.get(actual_frame, raw_mano[list(raw_mano.keys())[0]])
+
+        # Collect frame ID
+        collected_frame_ids.append(actual_frame)
+
+        # Collect raw SMPLX data (clone tensors to avoid reference issues)
+        collected_raw_smplx[actual_frame] = {
+            key: val.clone() if isinstance(val, torch.Tensor) else val
+            for key, val in smplx_frame.items()
+        }
+
+        # Collect raw MANO data
+        collected_raw_mano[actual_frame] = {
+            key: val.clone() if isinstance(val, torch.Tensor) else val
+            for key, val in mano_frame.items()
+        }
+
+        # Collect object transforms
+        for obj_id in obj_list:
+            if obj_id in obj_transf and actual_frame in obj_transf[obj_id]:
+                if obj_id not in collected_obj_transf:
+                    collected_obj_transf[obj_id] = {}
+                collected_obj_transf[obj_id][actual_frame] = obj_transf[obj_id][actual_frame].copy()
 
         # --- Body Root (9D) ---
         world_tsl = smplx_frame['world_tsl'].squeeze().numpy()  # (3,)
@@ -569,8 +615,6 @@ def process_segment(
         features[t, 329:371] = 0.0
 
         # --- Object Poses (27D for 3 objects) ---
-        obj_list = segment['objects'][:config.max_objects]
-
         for obj_idx, obj_id in enumerate(obj_list):
             if obj_id in obj_transf and actual_frame in obj_transf[obj_id]:
                 obj_transform = obj_transf[obj_id][actual_frame]
@@ -582,7 +626,16 @@ def process_segment(
                 features[t, offset:offset+3] = obj_pos
                 features[t, offset+3:offset+9] = obj_rot_6d
 
-    return features
+    # Prepare raw data for pickle output
+    raw_data = {
+        'frame_ids': collected_frame_ids,
+        'raw_smplx': collected_raw_smplx,
+        'raw_mano': collected_raw_mano,
+        'obj_transf': collected_obj_transf,
+        'obj_list': obj_list,
+    }
+
+    return features, raw_data
 
 
 def create_text_annotation(text: str, tokens: Optional[List[str]] = None) -> str:
@@ -604,6 +657,43 @@ def create_text_annotation(text: str, tokens: Optional[List[str]] = None) -> str
         tokens_str = " ".join(tokens)
 
     return f"{text}#{tokens_str}#0.0#0.0\n"
+
+
+def save_processed_annotation(
+    output_path: str,
+    frame_ids: List[int],
+    raw_smplx_data: Dict[int, Dict[str, torch.Tensor]],
+    raw_mano_data: Dict[int, Dict[str, torch.Tensor]],
+    obj_transf: Dict[str, Dict[int, np.ndarray]],
+    obj_list: List[str],
+) -> None:
+    """Save processed data in raw annotation pickle format.
+
+    This format is compatible with visualize_oakink2.py --raw_anno.
+
+    Args:
+        output_path: Path to save the pickle file.
+        frame_ids: List of frame IDs in the segment.
+        raw_smplx_data: Dictionary mapping frame_id to SMPLX data:
+            {frame_id: {'body_pose': Tensor(1,21,4), 'body_shape': Tensor(1,300),
+                        'world_rot': Tensor(1,4), 'world_tsl': Tensor(1,3), ...}}
+        raw_mano_data: Dictionary mapping frame_id to MANO data:
+            {frame_id: {'lh__tsl': Tensor(1,3), 'lh__pose_coeffs': Tensor(1,16,4),
+                        'rh__tsl': Tensor(1,3), 'rh__pose_coeffs': Tensor(1,16,4)}}
+        obj_transf: Object transforms {obj_id: {frame_id: np.array(4,4)}}.
+        obj_list: List of object IDs.
+    """
+    anno = {
+        'raw_smplx': raw_smplx_data,
+        'raw_mano': raw_mano_data,
+        'obj_transf': obj_transf,
+        'obj_list': obj_list,
+        'mocap_frame_id_list': frame_ids,
+    }
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, 'wb') as f:
+        pickle.dump(anno, f)
 
 
 def load_task_targets(oakink2_root: str) -> Dict[str, str]:
@@ -660,7 +750,7 @@ def process_full_sequence(
     mano_converter: 'MANOPCAConverter',
     object_processor: 'ObjectProcessor',
     all_objects: List[str],
-) -> Optional[np.ndarray]:
+) -> Optional[Tuple[np.ndarray, Dict[str, Any]]]:
     """Process a full sequence (for complex task mode) into feature representation.
 
     Args:
@@ -671,7 +761,15 @@ def process_full_sequence(
         all_objects: All objects involved in the sequence.
 
     Returns:
-        Feature array of shape (T, 398) or None if processing fails.
+        Tuple of (features, raw_data) where:
+        - features: Feature array of shape (T, 398)
+        - raw_data: Dictionary containing raw annotation data for visualization:
+            - 'frame_ids': List of frame IDs
+            - 'raw_smplx': Dict[frame_id, smplx_data]
+            - 'raw_mano': Dict[frame_id, mano_data]
+            - 'obj_transf': Dict[obj_id, Dict[frame_id, transform]]
+            - 'obj_list': List of object IDs
+        Returns None if processing fails.
     """
     # Get list of mocap frames
     mocap_frames = anno['mocap_frame_id_list']
@@ -680,12 +778,14 @@ def process_full_sequence(
     if total_frames < config.min_motion_len:
         return None
 
-    # Use all frames (no downsampling, OakInk2 is already 30fps)
-    frame_indices = list(range(total_frames))
-
-    # Limit to max length if specified
-    if config.max_motion_len > 0 and len(frame_indices) > config.max_motion_len:
-        frame_indices = frame_indices[:config.max_motion_len]
+    # Uniform subsample to preserve full motion arc
+    all_indices = list(range(total_frames))
+    target_len = config.max_motion_len if config.max_motion_len > 0 else 0
+    if target_len > 0 and len(all_indices) > target_len:
+        step = len(all_indices) / target_len
+        frame_indices = [all_indices[int(i * step)] for i in range(target_len)]
+    else:
+        frame_indices = all_indices
 
     T = len(frame_indices)
     features = np.zeros((T, TOTAL_FEATURE_DIM), dtype=np.float32)
@@ -694,6 +794,13 @@ def process_full_sequence(
     raw_smplx = anno['raw_smplx']
     raw_mano = anno['raw_mano']
     obj_transf = anno['obj_transf']
+
+    # Collect raw data for saving to pickle
+    collected_frame_ids: List[int] = []
+    collected_raw_smplx: Dict[int, Dict[str, torch.Tensor]] = {}
+    collected_raw_mano: Dict[int, Dict[str, torch.Tensor]] = {}
+    collected_obj_transf: Dict[str, Dict[int, np.ndarray]] = {}
+    obj_list = all_objects[:config.max_objects]
 
     for t, frame_id in enumerate(frame_indices):
         actual_frame = mocap_frames[frame_id] if frame_id < len(mocap_frames) else mocap_frames[-1]
@@ -706,6 +813,28 @@ def process_full_sequence(
 
         smplx_frame = raw_smplx[actual_frame]
         mano_frame = raw_mano.get(actual_frame, raw_mano[list(raw_mano.keys())[0]])
+
+        # Collect frame ID
+        collected_frame_ids.append(actual_frame)
+
+        # Collect raw SMPLX data (clone tensors to avoid reference issues)
+        collected_raw_smplx[actual_frame] = {
+            key: val.clone() if isinstance(val, torch.Tensor) else val
+            for key, val in smplx_frame.items()
+        }
+
+        # Collect raw MANO data
+        collected_raw_mano[actual_frame] = {
+            key: val.clone() if isinstance(val, torch.Tensor) else val
+            for key, val in mano_frame.items()
+        }
+
+        # Collect object transforms
+        for obj_id in obj_list:
+            if obj_id in obj_transf and actual_frame in obj_transf[obj_id]:
+                if obj_id not in collected_obj_transf:
+                    collected_obj_transf[obj_id] = {}
+                collected_obj_transf[obj_id][actual_frame] = obj_transf[obj_id][actual_frame].copy()
 
         # --- Body Root (9D) ---
         world_tsl = smplx_frame['world_tsl'].squeeze().numpy()  # (3,)
@@ -763,8 +892,6 @@ def process_full_sequence(
         features[t, 329:371] = 0.0
 
         # --- Object Poses (27D for 3 objects) ---
-        obj_list = all_objects[:config.max_objects]
-
         for obj_idx, obj_id in enumerate(obj_list):
             if obj_id in obj_transf and actual_frame in obj_transf[obj_id]:
                 obj_transform = obj_transf[obj_id][actual_frame]
@@ -776,7 +903,78 @@ def process_full_sequence(
                 features[t, offset:offset+3] = obj_pos
                 features[t, offset+3:offset+9] = obj_rot_6d
 
-    return features
+    # Prepare raw data for pickle output
+    raw_data = {
+        'frame_ids': collected_frame_ids,
+        'raw_smplx': collected_raw_smplx,
+        'raw_mano': collected_raw_mano,
+        'obj_transf': collected_obj_transf,
+        'obj_list': obj_list,
+    }
+
+    return features, raw_data
+
+
+# Module-level worker for multiprocessing (must be picklable)
+_worker_ctx = {}
+
+
+def _process_one_sequence(pkl_file):
+    """Process a single sequence. Uses module-level _worker_ctx for shared config."""
+    ctx = _worker_ctx
+    seq_key = pkl_file.replace('.pkl', '')
+    pkl_path = os.path.join(ctx['anno_dir'], pkl_file)
+    program_path = os.path.join(ctx['program_info_dir'], f"{seq_key}.json")
+    desc_path = os.path.join(ctx['desc_info_dir'], f"{seq_key}.json")
+
+    if not os.path.exists(program_path) or not os.path.exists(desc_path):
+        return []
+
+    config = ctx['config']
+    local_mano = MANOPCAConverter(mano_path=ctx['mano_path'])
+    local_obj_proc = ObjectProcessor(
+        os.path.join(config.oakink2_root, config.object_dir)
+    )
+
+    try:
+        with open(pkl_path, 'rb') as f:
+            anno = pickle.load(f)
+        with open(desc_path, 'r') as f:
+            desc_info_local = json.load(f)
+
+        all_objects = anno.get('obj_list', [])
+        results = []
+
+        if config.mode in ['primitive', 'both']:
+            segments, _ = load_oakink2_sequence(pkl_path, program_path, desc_path, config)
+            for segment in segments:
+                try:
+                    result = process_segment(anno, segment, config, local_mano, local_obj_proc)
+                except Exception:
+                    continue
+                if result is None:
+                    continue
+                features, raw_data = result
+                segment_name = f"{seq_key}_{segment['primitive']}_{segment['start_frame']}"
+                results.append(('primitive', segment_name, features, segment, raw_data))
+
+        if config.mode in ['complex', 'both']:
+            try:
+                result = process_full_sequence(anno, config, local_mano, local_obj_proc, all_objects)
+            except Exception:
+                result = None
+            if result is not None:
+                features, raw_data = result
+                high_level, concatenated = get_complex_task_description(
+                    seq_key, desc_info_local, ctx['task_targets']
+                )
+                results.append(('complex', seq_key, features,
+                                {'high_level': high_level, 'concatenated': concatenated}, raw_data))
+
+        return results
+    except Exception as e:
+        print(f"Error loading {seq_key}: {e}")
+        return []
 
 
 def main():
@@ -794,8 +992,10 @@ def main():
     parser.add_argument("--mode", type=str, default="primitive",
                         choices=["primitive", "complex", "both"],
                         help="Extraction mode: primitive (short segments), complex (full sequences), or both")
-    parser.add_argument("--max_frames", type=int, default=0,
-                        help="Maximum frames per sample (0 for no limit)")
+    parser.add_argument("--max_frames", type=int, default=200,
+                        help="Maximum frames per sample (0 for no limit). Long sequences are uniformly subsampled to this length.")
+    parser.add_argument("--num_workers", type=int, default=1,
+                        help="Number of parallel workers for preprocessing (default 1)")
     args = parser.parse_args()
 
     config = OakInk2Config(
@@ -807,10 +1007,12 @@ def main():
 
     print(f"\n=== OakInk2 Preprocessing ===")
     print(f"Mode: {config.mode}")
-    print(f"Output: {config.output_root}")
+    print(f"Output (.npy): {config.output_root}")
+    print(f"Output (.pkl): {ANNO_PROCESSED_DIR}")
     print(f"Max frames: {'unlimited' if config.max_motion_len == 0 else config.max_motion_len}")
 
     # Create output directories based on mode
+    os.makedirs(ANNO_PROCESSED_DIR, exist_ok=True)
     if config.mode == 'primitive':
         output_dirs = [('primitive', 'oakink2_primitive', 'texts_primitive')]
     elif config.mode == 'complex':
@@ -846,113 +1048,101 @@ def main():
 
     print(f"Processing {len(pkl_files)} sequences...")
 
-    # Track samples for each mode
+    # Set module-level worker context for multiprocessing
+    global _worker_ctx
+    _worker_ctx = {
+        'anno_dir': anno_dir,
+        'program_info_dir': program_info_dir,
+        'desc_info_dir': desc_info_dir,
+        'config': config,
+        'mano_path': args.mano_path,
+        'task_targets': task_targets,
+    }
+
+    # Process sequences (parallel or sequential)
+    num_workers = getattr(args, 'num_workers', 1)
+    all_results = []
+
+    if num_workers > 1:
+        print(f"Using {num_workers} parallel workers...")
+        with multiprocessing.Pool(num_workers) as pool:
+            for seq_results in tqdm(
+                pool.imap_unordered(_process_one_sequence, pkl_files),
+                total=len(pkl_files), desc="Processing sequences"
+            ):
+                all_results.extend(seq_results)
+    else:
+        for pkl_file in tqdm(pkl_files, desc="Processing sequences"):
+            all_results.extend(_process_one_sequence(pkl_file))
+
+    # Save all results sequentially (needs ordered indices)
     primitive_samples = {'idx': 0, 'names': [], 'features': []}
     complex_samples = {'idx': 0, 'names': [], 'features': []}
 
-    for pkl_file in tqdm(pkl_files, desc="Processing sequences"):
-        seq_key = pkl_file.replace('.pkl', '')
+    for mode, name, features, segment_or_meta, raw_data in all_results:
+        if mode == 'primitive':
+            motion_dir = os.path.join(config.output_root, 'oakink2_primitive')
+            text_dir = os.path.join(config.output_root, 'texts_primitive')
 
-        pkl_path = os.path.join(anno_dir, pkl_file)
-        program_path = os.path.join(program_info_dir, f"{seq_key}.json")
-        desc_path = os.path.join(desc_info_dir, f"{seq_key}.json")
+            motion_path = os.path.join(motion_dir, f"{primitive_samples['idx']:06d}.npy")
+            np.save(motion_path, features)
 
-        if not os.path.exists(program_path) or not os.path.exists(desc_path):
-            continue
+            text_path = os.path.join(text_dir, f"{primitive_samples['idx']:06d}.txt")
+            with open(text_path, 'w') as f:
+                f.write(create_text_annotation(segment_or_meta['text']))
 
-        try:
-            # Load annotation
-            with open(pkl_path, 'rb') as f:
-                anno = pickle.load(f)
-            with open(desc_path, 'r') as f:
-                desc_info = json.load(f)
+            pickle_path = os.path.join(ANNO_PROCESSED_DIR, f"{name}.pkl")
+            save_processed_annotation(
+                pickle_path,
+                raw_data['frame_ids'],
+                raw_data['raw_smplx'],
+                raw_data['raw_mano'],
+                raw_data['obj_transf'],
+                raw_data['obj_list'],
+            )
 
-            # Get all objects in the sequence
-            all_objects = anno.get('obj_list', [])
+            primitive_samples['names'].append(name)
+            primitive_samples['features'].append(features)
+            primitive_samples['idx'] += 1
 
-            # === PRIMITIVE MODE ===
-            if config.mode in ['primitive', 'both']:
-                segments, _ = load_oakink2_sequence(
-                    pkl_path, program_path, desc_path, config
-                )
+        elif mode == 'complex':
+            motion_dir = os.path.join(config.output_root, 'oakink2_complex')
+            text_dir = os.path.join(config.output_root, 'texts_complex')
 
-                for segment in segments:
-                    try:
-                        features = process_segment(
-                            anno, segment, config, mano_converter, object_processor
-                        )
-                    except Exception as e:
-                        continue
+            motion_path = os.path.join(motion_dir, f"{complex_samples['idx']:06d}.npy")
+            np.save(motion_path, features)
 
-                    if features is None:
-                        continue
+            meta = segment_or_meta
+            text_path = os.path.join(text_dir, f"{complex_samples['idx']:06d}.txt")
+            with open(text_path, 'w') as f:
+                main_text = meta['high_level'] if meta['high_level'] else meta['concatenated']
+                f.write(create_text_annotation(main_text))
+                if meta['concatenated'] and meta['concatenated'] != main_text:
+                    f.write(create_text_annotation(meta['concatenated']))
 
-                    # Save motion data
-                    motion_dir = os.path.join(config.output_root, 'oakink2_primitive')
-                    text_dir = os.path.join(config.output_root, 'texts_primitive')
+            pickle_path = os.path.join(ANNO_PROCESSED_DIR, f"{name}.pkl")
+            save_processed_annotation(
+                pickle_path,
+                raw_data['frame_ids'],
+                raw_data['raw_smplx'],
+                raw_data['raw_mano'],
+                raw_data['obj_transf'],
+                raw_data['obj_list'],
+            )
 
-                    motion_path = os.path.join(motion_dir, f"{primitive_samples['idx']:06d}.npy")
-                    np.save(motion_path, features)
-
-                    # Save text annotation
-                    text_path = os.path.join(text_dir, f"{primitive_samples['idx']:06d}.txt")
-                    with open(text_path, 'w') as f:
-                        f.write(create_text_annotation(segment['text']))
-
-                    primitive_samples['names'].append(
-                        f"{seq_key}_{segment['primitive']}_{segment['start_frame']}"
-                    )
-                    primitive_samples['features'].append(features)
-                    primitive_samples['idx'] += 1
-
-            # === COMPLEX MODE ===
-            if config.mode in ['complex', 'both']:
-                try:
-                    features = process_full_sequence(
-                        anno, config, mano_converter, object_processor, all_objects
-                    )
-                except Exception as e:
-                    print(f"Error processing full sequence {seq_key}: {e}")
-                    features = None
-
-                if features is not None:
-                    # Save motion data
-                    motion_dir = os.path.join(config.output_root, 'oakink2_complex')
-                    text_dir = os.path.join(config.output_root, 'texts_complex')
-
-                    motion_path = os.path.join(motion_dir, f"{complex_samples['idx']:06d}.npy")
-                    np.save(motion_path, features)
-
-                    # Get both text descriptions
-                    high_level, concatenated = get_complex_task_description(
-                        seq_key, desc_info, task_targets
-                    )
-
-                    # Save text annotation with both formats
-                    # Line 1: high-level description
-                    # Line 2: concatenated primitive descriptions
-                    text_path = os.path.join(text_dir, f"{complex_samples['idx']:06d}.txt")
-                    with open(text_path, 'w') as f:
-                        # Use high-level if available, otherwise concatenated
-                        main_text = high_level if high_level else concatenated
-                        f.write(create_text_annotation(main_text))
-                        # Also store concatenated as second line
-                        if concatenated and concatenated != main_text:
-                            f.write(create_text_annotation(concatenated))
-
-                    complex_samples['names'].append(seq_key)
-                    complex_samples['features'].append(features)
-                    complex_samples['idx'] += 1
-
-        except Exception as e:
-            print(f"Error loading {seq_key}: {e}")
-            continue
+            complex_samples['names'].append(name)
+            complex_samples['features'].append(features)
+            complex_samples['idx'] += 1
 
     # Print summary
+    total_pickles = 0
     if config.mode in ['primitive', 'both']:
         print(f"\nPrimitive mode: {primitive_samples['idx']} segments")
+        total_pickles += primitive_samples['idx']
     if config.mode in ['complex', 'both']:
         print(f"Complex mode: {complex_samples['idx']} full sequences")
+        total_pickles += complex_samples['idx']
+    print(f"Processed annotation pickles: {total_pickles} files in {ANNO_PROCESSED_DIR}")
 
     # Helper function to save mode-specific outputs
     def save_mode_outputs(samples_dict: Dict, mode_name: str, motion_subdir: str):

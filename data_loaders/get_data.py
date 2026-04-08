@@ -11,6 +11,9 @@ def get_dataset_class(name):
     if name == 'oakink2':
         from data_loaders.humanml.data.oakink2_dataset import OakInk2
         return OakInk2
+    elif name in ('oakink2_transition', 'grab_transition'):
+        from data_loaders.humanml.data.transition_dataset import TransitionDatasetWrapper
+        return TransitionDatasetWrapper
     else:
         from data_loaders.humanml.data.dataset import GRAB
         return GRAB
@@ -20,6 +23,9 @@ def get_collate_fn(name, hml_mode='train'):
     if hml_mode == 'gt':
         from data_loaders.humanml.data.dataset import collate_fn as t2m_eval_collate
         return t2m_eval_collate
+    if name in ('oakink2_transition', 'grab_transition'):
+        from data_loaders.humanml.data.transition_dataset import transition_collate_fn
+        return transition_collate_fn
     if name in ["grab", "oakink2"]:
         return t2m_collate
     else:
@@ -60,7 +66,18 @@ class DatasetConfig:
 def get_dataset(conf: DatasetConfig):
     DATA = get_dataset_class(conf.name)
 
-    if conf.name == "oakink2":
+    if conf.name in ('oakink2_transition', 'grab_transition'):
+        # Transition datasets
+        data_root = 'dataset/OAKINK2' if conf.name == 'oakink2_transition' else 'dataset/GRAB_HANDS'
+        dataset = DATA(
+            mode=conf.hml_mode,
+            dataset_type=conf.name,
+            split=conf.split,
+            data_root=data_root,
+            transition_frames=getattr(conf, 'num_frames', 60),
+            boundary_frames=getattr(conf, 'boundary_frames', 10),
+        )
+    elif conf.name == "oakink2":
         # OakInk2 dataset
         dataset = DATA(
             mode=conf.hml_mode,
@@ -104,11 +121,12 @@ def get_dataset_loader(conf: DatasetConfig, shuffle=True):
     collate = get_collate_fn(conf.name, conf.hml_mode)
 
     # return dataset
+    is_transition = conf.name in ('oakink2_transition', 'grab_transition')
     loader = DataLoader(dataset,
                         batch_size=conf.batch_size,
                         num_workers=1,
                         shuffle=shuffle,
-                        drop_last=True,
+                        drop_last=not is_transition,
                         collate_fn=collate)
 
     return loader

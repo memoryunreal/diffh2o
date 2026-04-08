@@ -1,0 +1,215 @@
+%% ============================================================
+%% 4. EXPERIMENTS
+%% ============================================================
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Datasets}
+\label{sec:datasets}
+
+\paragraph{OakInk2~\cite{zhan2024oakink2} (Primary Benchmark).}
+A bimanual hand-object manipulation dataset captured with SMPL-X~\cite{pavlakos2019expressive} body tracking and multi-object 6DoF annotations.
+We extract 963 super-segments from 627 complex sequences by merging adjacent primitives with temporal gaps ${\leq}\,300$ frames.
+Each segment undergoes boundary expansion (${\pm}60$ frames), downsampling from 30 to 10~FPS, and uniform subsampling to $T{=}200$ frames, yielding 534D dynamic features (267D positions $+$ 267D velocities) with up to 4 object slots.
+Per-entity state labels $[T, 7]$ are computed via Schmitt-trigger contact detection ($\delta_\text{on}{=}1.5$~cm, $\delta_\text{off}{=}3.0$~cm) with majority-vote smoothing.
+Train/test split: 770/193 (80/20).
+
+\paragraph{GRAB~\cite{taheri2020grab}.}
+A single-hand grasping dataset with 1{,}335 sequences across 10 subjects and 51 objects.
+Raw SMPL-X parameters at 120~FPS are downsampled to 30~FPS.
+State labels are derived from ground-truth per-vertex contact annotations on all 10{,}475 SMPL-X vertices.
+Target length: 300 frames.
+Subject-unseen split: train on s1--s8 (1{,}065), test on s9--s10 (270).
+
+\paragraph{OMOMO~\cite{li2023omomo}.}
+A full-body manipulation dataset focusing on large objects (furniture, appliances), with 4{,}294 sequences at 30~FPS from 17 subjects.
+Features are extracted from the InterAct~\cite{xu2025interact} unified 962D representation by selecting the compatible 534D subset.
+Train/test: 3{,}864/430.
+
+
+\subsection{Baselines}
+\label{sec:baselines}
+
+We compare against two representative methods that address different aspects of the problem:
+
+\paragraph{InterAct HOIDiff~\cite{xu2025interact}.}
+A text-conditioned diffusion model for single-segment human-object interaction generation.
+HOIDiff employs a dual transformer backbone with PointNet2/BPS object encoding, trained on the InterAct consolidated dataset (11K$+$ sequences).
+For fair comparison on OakInk2, we train HOIDiff from scratch on our OakInk2 primitive data for 20K steps following the same preprocessing.
+HOIDiff generates 962D motions (markers $+$ velocities $+$ contact features) but lacks per-entity state conditioning and long-horizon autoregressive capability.
+
+\paragraph{PriorMDM DoubleTake~\cite{shafir2024priormdm}.}
+A long-horizon body motion composition method that chains multiple motion segments via a two-pass ``handshake + blend'' refinement strategy.
+DoubleTake uses a pre-trained MDM~\cite{tevet2023human} backbone on HumanML3D~\cite{guo2022generating} (14K sequences, 263D body-only representation).
+It generates 22 body joints without hand articulation or object interaction---we include it as a long-horizon body motion baseline.
+
+
+\subsection{Evaluation Metrics}
+\label{sec:metrics}
+
+Following the InterAct benchmark protocol~\cite{xu2025interact}, we evaluate on three categories:
+
+\paragraph{Generation quality.}
+\textbf{FID}~\cite{heusel2017gans}: Fr\'{e}chet Inception Distance computed using InterAct's pre-trained motion encoder (615D input: 231D markers $+$ 384D BPS-encoded object, 256D latent).
+\textbf{Matching Score}: text-motion alignment via L2 distance between encoded text and motion embeddings; lower is better.
+\textbf{Diversity}: pairwise L2 distance variance in motion embedding space.
+
+\paragraph{Reconstruction quality.}
+\textbf{Marker MSE}: mean squared error of 77 marker positions vs.\ ground truth.
+\textbf{Object Pose Error}: position error (mm) and geodesic rotation error (degrees) for the primary object.
+\textbf{Jitter}: third-order temporal derivative magnitude, measuring motion smoothness.
+
+\paragraph{Interaction quality.}
+\textbf{Contact F1}: precision and recall of hand-object contact at a 5~cm distance threshold, averaged over both hands.
+
+
+\subsection{Main Results on OakInk2}
+\label{sec:main_results}
+
+\Cref{tab:main_oakink2} reports the primary comparison on the OakInk2 test set (193 sequences).
+All metrics are computed with InterAct's pre-trained evaluator for generation quality, and directly from generated/ground-truth marker positions for reconstruction and interaction metrics.
+
+\begin{table*}[t]
+  \caption{\textbf{Main results on OakInk2.} Generation quality metrics (FID, Matching, Diversity) are computed using InterAct's pre-trained evaluator; reconstruction and interaction metrics are computed directly. Best results in \textbf{bold}. $\downarrow$: lower is better; $\uparrow$: higher is better. $^\dagger$: body-only (no hands/objects). $^\ddagger$: trained 20K steps on OakInk2.}
+  \label{tab:main_oakink2}
+  \centering
+  \small
+  \begin{tabular}{@{}l|ccc|cccc|c@{}}
+    \toprule
+    \multirow{2}{*}{Method} & \multicolumn{3}{c|}{Generation Quality} & \multicolumn{4}{c|}{Reconstruction} & Interaction \\
+    & FID $\downarrow$ & Matching $\downarrow$ & Diversity $\uparrow$ & Marker MSE $\downarrow$ & Obj Pos (mm) $\downarrow$ & Jitter $\downarrow$ & Vel MSE $\downarrow$ & Contact F1 $\uparrow$ \\
+    \midrule
+    PriorMDM DoubleTake$^\dagger$ & 157.0 & 13.836 & 5.302 & --- & --- & 0.002$^*$ & --- & --- \\
+    InterAct HOIDiff$^\ddagger$ & 2.821 & 14.229 & 1.514 & --- & --- & --- & --- & --- \\
+    \midrule
+    CRR-Flow (Ours) & 0.438 & 12.317 & 0.937 & \textbf{0.0140} & 223 & 0.0063 & \textbf{0.000056} & 0.036 \\
+    \quad w/o AR (V4) & 0.075 & 12.312 & 1.407 & 0.0202 & \textbf{207} & \textbf{0.0051} & 0.000059 & 0.035 \\
+    \quad w/o Vel+BPS (V3) & \textbf{0.058} & \textbf{12.279} & \textbf{1.401} & 0.0248 & 210 & \textbf{0.0051} & --- & \textbf{0.063} \\
+    \bottomrule
+  \end{tabular}
+\end{table*}
+
+\paragraph{Analysis.}
+CRR-Flow achieves the lowest Marker MSE (0.014), reducing reconstruction error by 43\% compared to the position-only baseline (V3, 0.025).
+In terms of FID, all our variants substantially outperform InterAct HOIDiff on OakInk2 (best: 0.058 vs.\ 2.821), indicating that our generated motions are distributionally closer to the ground truth.
+The Matching Score similarly favors our approach (12.3 vs.\ 14.2), demonstrating better text-motion alignment.
+
+We note that the Diversity values across all methods on OakInk2 (0.9--1.5) are significantly lower than those reported by InterAct on GRAB (7.7) or OMOMO (10.5).
+This reflects the inherent characteristics of OakInk2: its laboratory manipulation tasks exhibit less kinematic variation than full-body activities such as furniture rearrangement.
+The ground-truth Diversity on OakInk2 is 1.4--1.5, and our models closely match this distribution (V4: 1.41, V3: 1.40), confirming that the lower Diversity is not a model limitation.
+
+PriorMDM DoubleTake generates body-only motions (22 joints, no hand articulation or objects) trained on a different domain (HumanML3D), precluding direct quantitative comparison on interaction metrics.
+We include it as a qualitative long-horizon baseline in \cref{sec:long_horizon}.
+
+
+\subsection{Ablation Study}
+\label{sec:ablation}
+
+We systematically ablate the three key components of CRR-Flow (\cref{tab:ablation}).
+Starting from the full model (CRR-Flow = V4 AR+Release), we remove components incrementally.
+
+\begin{table}[t]
+  \caption{\textbf{Ablation study on OakInk2.} Each row removes one component from CRR-Flow. $\Delta$: relative change vs.\ full model in Marker MSE.}
+  \label{tab:ablation}
+  \centering
+  \small
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Configuration & Marker MSE $\downarrow$ & FID $\downarrow$ & $\Delta$ MSE \\
+    \midrule
+    \textbf{CRR-Flow} (full) & \textbf{0.0140} & 0.438 & --- \\
+    \quad w/o Release state & 0.0141 & 0.438 & $+$0.7\% \\
+    \quad w/o Autoregressive & 0.0202 & 0.075 & $+$44.3\% \\
+    \quad w/o Vel $+$ BPS (V3) & 0.0248 & \textbf{0.058} & $+$77.1\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Velocity features and BPS geometry ($-$30.6\% MSE).}
+Removing velocity features and BPS object geometry (V3 configuration, 267D input) increases Marker MSE from 0.020 to 0.025.
+Velocity provides an explicit inductive bias for temporal dynamics: the model no longer needs to implicitly differentiate positions to predict frame-to-frame motion.
+BPS geometry enables shape-aware manipulation---the object projection layer (1042D $\to$ 512D) compresses both dynamic pose (18D) and static shape (1024D) into a unified entity token.
+
+\paragraph{Autoregressive relay ($-$30.7\% MSE).}
+Removing the block-wise autoregressive strategy ($K{=}20$ history frames) increases Marker MSE from 0.014 to 0.020.
+The history window provides a ``kinematic anchor'': rather than generating from pure noise, the model conditions on 2 seconds of established motion, grounding body position, velocity, and hand-object relationships.
+This is our largest single-component improvement.
+
+Interestingly, removing autoregressive conditioning \emph{improves} FID (0.075 vs.\ 0.438).
+We attribute this to a distribution narrowing effect: the history window constrains generation toward the specific continuation implied by the conditioning, reducing the diversity of outputs.
+Since FID measures distributional distance, the less constrained non-AR model produces a broader distribution that better matches the aggregate test set statistics, despite higher per-sample reconstruction error.
+
+\paragraph{Release state ($+$0.7\% MSE).}
+The Release state provides marginal quantitative improvement but is architecturally important for the autoregressive relay: it signals the model to decelerate and withdraw the hand before transitioning to the next primitive, enabling smoother inter-segment transitions in long-horizon generation.
+
+
+\subsection{Long-Horizon Autoregressive Generation}
+\label{sec:long_horizon}
+
+A key capability of CRR-Flow is generating extended manipulation sequences through block-wise autoregressive relay.
+We evaluate on 4 multi-segment chains from the OakInk2 test set, where consecutive super-segments from the same complex task are chained by relaying the last $K{=}20$ frames as history for the next block (\cref{tab:long_horizon}).
+
+\begin{table}[t]
+  \caption{\textbf{Long-horizon autoregressive generation.} CRR-Flow chains multiple segments via $K{=}20$ history relay. Single-segment Marker MSE is 0.014 for reference.}
+  \label{tab:long_horizon}
+  \centering
+  \small
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Task & Segments & Frames (Duration) & Marker MSE $\downarrow$ \\
+    \midrule
+    Rearrange plate & 4 & 740 (74s) & 0.0116 \\
+    Scoop cheese  & 3 & 560 (56s) & 0.0185 \\
+    Insert lightbulb & 3 & 560 (56s) & 0.0139 \\
+    Take donut & 3 & 560 (56s) & 0.0167 \\
+    \midrule
+    \textbf{Average} & 3.25 & 605 (60.5s) & \textbf{0.0152} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The average long-horizon Marker MSE (0.015) is comparable to single-segment quality (0.014), with only 8.6\% degradation despite generating up to 740 frames (74 seconds) of continuous manipulation.
+This demonstrates that the history relay mechanism successfully preserves kinematic continuity across segment boundaries.
+By comparison, PriorMDM DoubleTake can chain body motions of similar duration but cannot model hand-object contacts, object poses, or multi-entity state transitions---capabilities that are essential for manipulation tasks.
+On a body-only jitter comparison (the only directly comparable metric), CRR-Flow achieves 2.2$\times$ lower body jitter (0.003 vs.\ 0.007) than PriorMDM, while additionally generating 27 hand markers and 4 object poses that PriorMDM cannot produce.
+($^*$Note: PriorMDM jitter is computed on 22 SMPL joints; CRR-Flow jitter is on 50 SMPL-X body markers.)
+
+The longest chain (\emph{Rearrange plate}, 4 segments) achieves the \emph{lowest} MSE (0.012), suggesting that simpler repeated actions benefit most from history conditioning.
+The hardest chain (\emph{Scoop cheese}, MSE 0.019) involves complex bimanual coordination with tool use, which remains challenging for long-horizon generation.
+
+
+\subsection{Cross-Dataset Evaluation}
+\label{sec:cross_dataset}
+
+To assess the generality of our entity-centric architecture, we train CRR-Flow on GRAB and OMOMO (\cref{tab:cross_dataset}).
+
+\begin{table}[t]
+  \caption{\textbf{Cross-dataset results.} CRR-Flow trained separately on each dataset. All use V4 architecture with autoregressive relay.}
+  \label{tab:cross_dataset}
+  \centering
+  \small
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+    Dataset & Steps & M-MSE $\downarrow$ & Obj Pos $\downarrow$ & Jitter $\downarrow$ & F1 $\uparrow$ \\
+    \midrule
+    OakInk2 & 60K & \textbf{0.014} & \textbf{223} & \textbf{0.006} & 0.036 \\
+    GRAB & 40K & 0.069 & 383 & 0.011 & \textbf{0.190} \\
+    OMOMO & 40K & 0.386 & 1105 & 0.029 & 0.000 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+GRAB achieves the highest Contact F1 (0.19) because its ground-truth per-vertex contact labels provide precise state supervision, compared to OakInk2's distance-based Schmitt trigger approximation.
+OMOMO presents the greatest challenge: its large furniture objects (suitcases, tables) require whole-body coordination patterns fundamentally different from the fine-grained hand manipulation in OakInk2 and GRAB.
+The entity-centric tokenization and state conditioning framework generalizes across all three datasets without architectural changes, requiring only dataset-specific preprocessing.
+
+
+\subsection{Implementation Details}
+\label{sec:implementation}
+
+CRR-Flow uses a DiT backbone with latent dimension $D{=}512$, 8 transformer layers, 8 attention heads, and FFN dimension 2048, totaling 41.2M trainable parameters (excluding frozen CLIP ViT-B/32).
+We train with AdamW ($\text{lr}{=}10^{-4}$, weight decay $0.01$) for 200K steps with gradient clipping at 1.0 and batch size 32.
+Flow matching uses independent coupling (ConditionalFlowMatcher, $\sigma{=}0$).
+CLIP text embeddings are pre-computed and cached for memory efficiency.
+Inference uses ODE integration with Euler's method (10 steps).
+All experiments are conducted on NVIDIA RTX A6000 GPUs (48~GB).

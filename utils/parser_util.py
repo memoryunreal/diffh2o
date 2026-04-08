@@ -179,7 +179,7 @@ class TrainingOptions:
             "help":
             "Choose platform to log results. NoPlatform means no logging.",
             "choices":
-            ['NoPlatform', 'ClearmlPlatform', 'TensorboardPlatform']
+            ['NoPlatform', 'ClearmlPlatform', 'TensorboardPlatform', 'WandbPlatform']
         })
     lr: float = field(default=1e-4, metadata={"help": "Learning rate."})
     weight_decay: float = field(default=0.,

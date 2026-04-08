@@ -366,6 +366,106 @@ def vis_fn(sample, filename, data, model, concat=False, abs_3d=False, traj_only=
         # sample_files.append(all_rep_save_path)
 
 
+def recover_from_ric_oakink2(data, OAKINK2_REPRESENTATION_IDCS):
+    """
+    Recover motion components from OakInk2's 398D representation.
+
+    Args:
+        data: Tensor of shape [batch, 1, frames, 398] or [batch, frames, 398]
+        OAKINK2_REPRESENTATION_IDCS: Dict of feature indices
+
+    Returns:
+        Dictionary containing body, hand, and object motion components
+    """
+    data = torch.tensor(data, dtype=torch.float32)
+
+    # Handle different input shapes
+    if len(data.shape) == 4:
+        data = data[:, 0, :, :]  # [B, T, 398]
+
+    return {
+        'body_root_pos': data[..., OAKINK2_REPRESENTATION_IDCS['body_tsl'][0]:OAKINK2_REPRESENTATION_IDCS['body_tsl'][1]],
+        'body_root_rot': data[..., OAKINK2_REPRESENTATION_IDCS['body_rot'][0]:OAKINK2_REPRESENTATION_IDCS['body_rot'][1]],
+        'body_pose': data[..., OAKINK2_REPRESENTATION_IDCS['body_pose'][0]:OAKINK2_REPRESENTATION_IDCS['body_pose'][1]],
+        'left_hand_pos': data[..., OAKINK2_REPRESENTATION_IDCS['left_hand_pos'][0]:OAKINK2_REPRESENTATION_IDCS['left_hand_pos'][1]],
+        'left_hand_orient': data[..., OAKINK2_REPRESENTATION_IDCS['left_hand_orient'][0]:OAKINK2_REPRESENTATION_IDCS['left_hand_orient'][1]],
+        'left_hand_pca': data[..., OAKINK2_REPRESENTATION_IDCS['left_hand_pca'][0]:OAKINK2_REPRESENTATION_IDCS['left_hand_pca'][1]],
+        'right_hand_pos': data[..., OAKINK2_REPRESENTATION_IDCS['right_hand_pos'][0]:OAKINK2_REPRESENTATION_IDCS['right_hand_pos'][1]],
+        'right_hand_orient': data[..., OAKINK2_REPRESENTATION_IDCS['right_hand_orient'][0]:OAKINK2_REPRESENTATION_IDCS['right_hand_orient'][1]],
+        'right_hand_pca': data[..., OAKINK2_REPRESENTATION_IDCS['right_hand_pca'][0]:OAKINK2_REPRESENTATION_IDCS['right_hand_pca'][1]],
+        'left_hand_quat': torch.cat([
+            data[..., OAKINK2_REPRESENTATION_IDCS['left_hand_tsl_quat'][0]:OAKINK2_REPRESENTATION_IDCS['left_hand_tsl_quat'][1]],
+            data[..., OAKINK2_REPRESENTATION_IDCS['left_hand_pose_quat'][0]:OAKINK2_REPRESENTATION_IDCS['left_hand_pose_quat'][1]]
+        ], dim=-1),
+        'right_hand_quat': torch.cat([
+            data[..., OAKINK2_REPRESENTATION_IDCS['right_hand_tsl_quat'][0]:OAKINK2_REPRESENTATION_IDCS['right_hand_tsl_quat'][1]],
+            data[..., OAKINK2_REPRESENTATION_IDCS['right_hand_pose_quat'][0]:OAKINK2_REPRESENTATION_IDCS['right_hand_pose_quat'][1]]
+        ], dim=-1),
+        'sdf_left': data[..., OAKINK2_REPRESENTATION_IDCS['sdf_left'][0]:OAKINK2_REPRESENTATION_IDCS['sdf_left'][1]],
+        'sdf_right': data[..., OAKINK2_REPRESENTATION_IDCS['sdf_right'][0]:OAKINK2_REPRESENTATION_IDCS['sdf_right'][1]],
+        'object1_pose': torch.cat([
+            data[..., OAKINK2_REPRESENTATION_IDCS['object1_pos'][0]:OAKINK2_REPRESENTATION_IDCS['object1_pos'][1]],
+            data[..., OAKINK2_REPRESENTATION_IDCS['object1_rot'][0]:OAKINK2_REPRESENTATION_IDCS['object1_rot'][1]]
+        ], dim=-1),
+        'object2_pose': torch.cat([
+            data[..., OAKINK2_REPRESENTATION_IDCS['object2_pos'][0]:OAKINK2_REPRESENTATION_IDCS['object2_pos'][1]],
+            data[..., OAKINK2_REPRESENTATION_IDCS['object2_rot'][0]:OAKINK2_REPRESENTATION_IDCS['object2_rot'][1]]
+        ], dim=-1),
+        'object3_pose': torch.cat([
+            data[..., OAKINK2_REPRESENTATION_IDCS['object3_pos'][0]:OAKINK2_REPRESENTATION_IDCS['object3_pos'][1]],
+            data[..., OAKINK2_REPRESENTATION_IDCS['object3_rot'][0]:OAKINK2_REPRESENTATION_IDCS['object3_rot'][1]]
+        ], dim=-1),
+    }
+
+
+def sample_to_motion_oakink2(sample_list, args, model_kwargs, model, n_frames,
+                              data_inv_transform_fn):
+    """
+    Convert diffusion samples to OakInk2 motion representation.
+
+    Similar to sample_to_hand_motion() but for 398D features.
+
+    Args:
+        sample_list: List of sample tensors or single tensor
+        args: Generation arguments
+        model_kwargs: Model keyword arguments containing text, etc.
+        model: The diffusion model
+        n_frames: Number of frames
+        data_inv_transform_fn: Function to inverse transform normalized data
+
+    Returns:
+        all_motions_pose_space: List of denormalized motion arrays
+        all_motions: List of normalized motion arrays
+        all_lengths: List of sequence lengths
+        all_text: List of text descriptions
+    """
+    if not isinstance(sample_list, list):
+        sample_list = [sample_list]
+
+    all_motions, all_motions_pose_space, all_lengths, all_text = [], [], [], []
+
+    for sample in sample_list:
+        # Inverse transform from normalized space
+        sample_pose_space = data_inv_transform_fn(
+            sample.cpu().permute(0, 2, 3, 1)
+        ).float()
+
+        # Extract text
+        if args.unconstrained:
+            all_text += ['unconstrained'] * args.num_samples
+        else:
+            text_key = 'text' if 'text' in model_kwargs['y'] else 'action_text'
+            all_text += model_kwargs['y'][text_key]
+
+        all_motions.append(sample.cpu().numpy())
+        all_motions_pose_space.append(sample_pose_space.cpu().numpy())
+        all_lengths.append(model_kwargs['y']['lengths'].cpu().numpy())
+
+        print(f"created {len(all_motions) * args.batch_size} samples")
+
+    return all_motions_pose_space, all_motions, all_lengths, all_text
+
+
 def plot_grad(out_path, rep_i):
     '''Function for check gradient of x during the denoising process.
     Not in use right now.

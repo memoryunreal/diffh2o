@@ -1,0 +1,49 @@
+{
+  "model_path": "save/v4_autoreg_200k/model000180000.pt",
+  "model_version": "v4",
+  "data_root": "dataset/OAKINK2_V4",
+  "step": "000180000",
+  "num_samples": 193,
+  "num_repeats": 2,
+  "smooth_window": 0,
+  "metrics": {
+    "fid_mean": 0.4454297320784828,
+    "fid_std": 0.0011041817489871875,
+    "r_prec_1_mean": 0.0051813471502590676,
+    "r_prec_1_std": 0.0,
+    "r_prec_2_mean": 0.01295336787564767,
+    "r_prec_2_std": 0.0025906735751295333,
+    "r_prec_3_mean": 0.01295336787564767,
+    "r_prec_3_std": 0.0025906735751295333,
+    "matching_pred_mean": 12.327782922458155,
+    "matching_pred_std": 0.013044278238721674,
+    "matching_real_mean": 12.275015462865483,
+    "matching_real_std": 0.0009905587823899609,
+    "diversity_mean": 1.012444168329239,
+    "diversity_std": 0.15705356001853943,
+    "diversity_real_mean": 1.48247230052948,
+    "diversity_real_std": 0.01610851287841797
+  },
+  "per_repeat": [
+    {
+      "fid": 0.44653391382747,
+      "r_prec_1": 0.0051813471502590676,
+      "r_prec_2": 0.010362694300518135,
+      "r_prec_3": 0.010362694300518135,
+      "matching_pred": 12.340827200696877,
+      "matching_real": 12.274024904083094,
+      "diversity": 1.1694977283477783,
+      "diversity_real": 1.466363787651062
+    },
+    {
+      "fid": 0.4443255503294956,
+      "r_prec_1": 0.0051813471502590676,
+      "r_prec_2": 0.015544041450777202,
+      "r_prec_3": 0.015544041450777202,
+      "matching_pred": 12.314738644219434,
+      "matching_real": 12.276006021647873,
+      "diversity": 0.8553906083106995,
+      "diversity_real": 1.498580813407898
+    }
+  ]
+}
