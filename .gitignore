@@ -1,0 +1,10 @@
+dataset/
+save/
+wandb/
+__pycache__/
+*.pyc
+*.swp
+*.swo
+*.log
+.claude/
+output/
